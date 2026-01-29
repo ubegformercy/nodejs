@@ -271,13 +271,21 @@ client.once("clientReady", async () => {
       .addRoleOption((o) => o.setName("role").setDescription("Role to check (optional)").setRequired(false)),
   ].map((c) => c.toJSON());
 
-  try {
-    const rest = new REST({ version: "10" }).setToken(TOKEN);
-    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-    console.log("Slash commands registered.");
-  } catch (err) {
-    console.error("Failed to register slash commands:", err);
-  }
+  console.log("Registering command names:", commands.map(c => c.name).join(", "));
+
+ try {
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+  console.log("Registering command names:", commands.map(c => c.name).join(", "));
+
+  const result = await rest.put(
+    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+    { body: commands }
+  );
+
+  console.log("Slash commands registered. Discord now has:", result.map(c => c.name).join(", "));
+} catch (err) {
+  console.error("Failed to register slash commands:", err);
 });
 
 async function canManageRole(guild, role) {
