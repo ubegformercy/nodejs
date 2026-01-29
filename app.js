@@ -244,7 +244,9 @@ client.once("clientReady", async () => {
       .setDescription("Add minutes to a user's timed role and assign the role.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
       .addUserOption((o) => o.setName("user").setDescription("User to add time to").setRequired(true))
-      .addIntegerOption((o) => o.setName("minutes").setDescription("Minutes to add").setRequired(true).setMinValue(1))
+      .addIntegerOption((o) =>
+        o.setName("minutes").setDescription("Minutes to add").setRequired(true).setMinValue(1)
+      )
       .addRoleOption((o) => o.setName("role").setDescription("Role to add time to (optional)").setRequired(false)),
 
     new SlashCommandBuilder()
@@ -271,38 +273,21 @@ client.once("clientReady", async () => {
       .addRoleOption((o) => o.setName("role").setDescription("Role to check (optional)").setRequired(false)),
   ].map((c) => c.toJSON());
 
-  console.log("Registering command names:", commands.map(c => c.name).join(", "));
+  console.log("Registering command names:", commands.map((c) => c.name).join(", "));
 
- try {
-  const rest = new REST({ version: "10" }).setToken(TOKEN);
+  try {
+    const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-  console.log("Registering command names:", commands.map(c => c.name).join(", "));
+    const result = await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands }
+    );
 
-  const result = await rest.put(
-    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-    { body: commands }
-  );
-
-  console.log("Slash commands registered. Discord now has:", result.map(c => c.name).join(", "));
-} catch (err) {
-  console.error("Failed to register slash commands:", err);
+    console.log("Slash commands registered. Discord now has:", result.map((c) => c.name).join(", "));
+  } catch (err) {
+    console.error("Failed to register slash commands:", err);
+  }
 });
-
-async function canManageRole(guild, role) {
-  const me = await guild.members.fetchMe();
-  if (!me.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    return { ok: false, reason: "I don't have Manage Roles permission." };
-  }
-  if (me.roles.highest.position <= role.position) {
-    return {
-      ok: false,
-      reason: `I can't manage **${role.name}** because my highest role is not above it. Move my bot role higher than **${role.name}**.`,
-    };
-  }
-  return { ok: true, me };
-}
-
-
 
 
 //----------------------------------------
