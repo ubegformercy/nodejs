@@ -1,3 +1,7 @@
+//----------------------------------------
+// SECTION 0 — Imports & Boot Logging
+//----------------------------------------
+
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -21,11 +25,21 @@ const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
 
-// ----- Warning thresholds (minutes remaining) -----
+
+
+//----------------------------------------
+// SECTION 1 — Warning/Timer Configuration
+//----------------------------------------
+
+// Warning thresholds (minutes remaining)
 const WARNING_THRESHOLDS_MIN = [10, 1]; // customize as you like
 const CHECK_INTERVAL_MS = 30_000;
 
-// ---------------- Storage ----------------
+
+
+//----------------------------------------
+// SECTION 2 — Storage (data.json)
+//----------------------------------------
 // Data format:
 // {
 //   "<userId>": {
@@ -38,6 +52,7 @@ const CHECK_INTERVAL_MS = 30_000;
 //     }
 //   }
 // }
+
 const DATA_PATH = path.resolve(__dirname, "data.json");
 
 function readData() {
@@ -65,6 +80,12 @@ function ensureUserRole(data, userId, roleId) {
   if (!data[userId].roles[roleId].warningsSent) data[userId].roles[roleId].warningsSent = {};
   return data;
 }
+
+
+
+//----------------------------------------
+// SECTION 3 — Utility Helpers
+//----------------------------------------
 
 function formatMs(ms) {
   const totalSec = Math.floor(ms / 1000);
@@ -97,6 +118,12 @@ function getFirstTimedRoleId(userId) {
   return ids[0];
 }
 
+
+
+//----------------------------------------
+// SECTION 4 — Timer Math (set/add/remove)
+//----------------------------------------
+
 // Add minutes to a specific role timer (user+role)
 function addMinutesForRole(userId, roleId, minutes) {
   const data = readData();
@@ -109,8 +136,7 @@ function addMinutesForRole(userId, roleId, minutes) {
 
   data[userId].roles[roleId].expiresAt = expiresAt;
 
-  // If you extend time, you might want to allow warnings to be re-sent if you moved back above thresholds.
-  // We'll clear warningsSent so warnings can re-fire appropriately after large extensions.
+  // Clear warnings so they can re-fire after extensions
   data[userId].roles[roleId].warningsSent = {};
 
   writeData(data);
@@ -157,15 +183,19 @@ function removeMinutesForRole(userId, roleId, minutes) {
 
   data[userId].roles[roleId].expiresAt = newExpiry;
 
-  // If time was reduced, we should also clear warningsSent so it can re-evaluate correctly.
-  // Example: if it was above 10 min, then you remove time down to 5 min, it should warn.
+  // Clear warnings so it can re-evaluate correctly after reduction
   data[userId].roles[roleId].warningsSent = {};
 
   writeData(data);
   return newExpiry;
 }
 
-// ---------------- Discord Bot ----------------
+
+
+//----------------------------------------
+// SECTION 5 — Discord Client + Slash Command Registration
+//----------------------------------------
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
 });
@@ -243,6 +273,12 @@ async function canManageRole(guild, role) {
   }
   return { ok: true, me };
 }
+
+
+
+//----------------------------------------
+// SECTION 6 — Slash Command Handlers
+//----------------------------------------
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
@@ -520,7 +556,12 @@ process.on("unhandledRejection", (reason) => console.error("Unhandled rejection:
 
 client.login(TOKEN).catch((err) => console.error("Login failed:", err));
 
-// ---------------- Express Web Server ----------------
+
+
+//----------------------------------------
+// SECTION 7 — Express Web Server
+//----------------------------------------
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -545,7 +586,12 @@ app.listen(PORT, () => {
   console.log(`Server listening: http://localhost:${PORT}`);
 });
 
-// ---------------- Timers: warnings + expiry cleanup ----------------
+
+
+//----------------------------------------
+// SECTION 8 — Timers: Warnings + Expiry Cleanup
+//----------------------------------------
+
 async function sendWarningOrDm(guild, userId, roleId, minutesLeft, warnChannelId) {
   const roleObj = guild.roles.cache.get(roleId);
   const roleName = roleObj ? roleObj.name : "that role";
@@ -559,7 +605,7 @@ async function sendWarningOrDm(guild, userId, roleId, minutesLeft, warnChannelId
       await channel.send({ content }).catch(() => null);
       return;
     }
-    // If channel invalid or missing perms, fallback to DM
+    // fallback to DM
   }
 
   // DM fallback
