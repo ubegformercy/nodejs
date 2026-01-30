@@ -706,7 +706,7 @@ if (interaction.commandName === "resumetime") {
       return interaction.reply({
         embeds: [embed],
       });
-
+    }
     // ---------- /addtime ----------
     if (interaction.commandName === "addtime") {
       if (!interaction.guild) {
