@@ -716,7 +716,7 @@ return interaction.reply({ embeds: [embed] });
         .setTitle("Timed Role Activated")
         .setAuthor({name: "BoostMon", iconURL: BOOSTMON_ICON_URL,})
         .setTimestamp(new Date())
-        .setFooter({"BoostMon • Active Timer", iconURL: BOOSTMON_ICON_URL,})
+        .setFooter("BoostMon • Active Timer", iconURL: BOOSTMON_ICON_URL)
         .addFields(
           { name: "Command Run By", value: `${interaction.user}`, inline: true },
           { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
