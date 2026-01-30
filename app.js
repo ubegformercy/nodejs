@@ -415,6 +415,8 @@ client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   
 // ---------- /pausetime ----------
+console.log("DEBUG: pausetime builder is in this file");
+
 if (interaction.commandName === "pausetime") {
   if (!interaction.guild) {
     return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
