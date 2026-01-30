@@ -1,5 +1,3 @@
-const BOOSTMON_ICON_URL = "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
-
 //----------------------------------------
 // SECTION 0 — Imports & Boot Logging
 //----------------------------------------
@@ -18,7 +16,7 @@ const {
   EmbedBuilder,  
 } = require("discord.js");
 const indexRouter = require("./routes/index");
-
+const BOOSTMON_ICON_URL = "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
 console.log("=== BoostMon app.js booted ===");
 console.log("DISCORD_TOKEN present:", Boolean(process.env.DISCORD_TOKEN));
 console.log("DISCORD_CLIENT_ID present:", Boolean(process.env.DISCORD_CLIENT_ID));
@@ -792,7 +790,7 @@ const embed = new EmbedBuilder()
 return interaction.reply({
   embeds: [embed],
 });
-
+}
 
     // ---------- /removetime ----------
     if (interaction.commandName === "removetime") {
