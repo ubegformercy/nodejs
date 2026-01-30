@@ -105,27 +105,17 @@ function writeData(obj) {
   try {
     const json = JSON.stringify(obj, null, 2);
 
-    // Keep last known good version
-    if (fs.existsSync(DATA_PATH)) {
-      try {
-        fs.copyFileSync(DATA_PATH, DATA_BAK_PATH);
-      } catch (e) {
-        console.warn(`[WARN] Could not create backup: ${e?.message || e}`);
-      }
-    }
-
-    // Write to temp file first
     fs.writeFileSync(DATA_TMP_PATH, json, "utf8");
 
-    // Atomic swap
+    if (fs.existsSync(DATA_PATH)) {
+      try { fs.copyFileSync(DATA_PATH, DATA_BAK_PATH); } catch {}
+      try { fs.unlinkSync(DATA_PATH); } catch {}
+    }
+
     fs.renameSync(DATA_TMP_PATH, DATA_PATH);
   } catch (e) {
     console.error(`[ERROR] writeData failed: ${e?.message || e}`);
-
-    // Cleanup temp file if something went wrong
-    try {
-      if (fs.existsSync(DATA_TMP_PATH)) fs.unlinkSync(DATA_TMP_PATH);
-    } catch {}
+    try { if (fs.existsSync(DATA_TMP_PATH)) fs.unlinkSync(DATA_TMP_PATH); } catch {}
   }
 }
 
