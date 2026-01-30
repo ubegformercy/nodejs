@@ -714,9 +714,9 @@ return interaction.reply({ embeds: [embed] });
       const embed = new EmbedBuilder()
         .setColor(0x2ECC71) // 🟢 active timer
         .setTitle("Timed Role Activated")
-        .setAuthor({name: "BoostMon",iconURL: BOOSTMON_ICON_URL,})
+        .setAuthor({name: "BoostMon", iconURL: BOOSTMON_ICON_URL,})
         .setTimestamp(new Date())
-        .setFooter("BoostMon • Active Timer", iconUrl)
+        .setFooter({"BoostMon • Active Timer", iconURL: BOOSTMON_ICON_URL,})
         .addFields(
           { name: "Command Run By", value: `${interaction.user}`, inline: true },
           { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
