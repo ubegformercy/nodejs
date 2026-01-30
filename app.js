@@ -626,10 +626,27 @@ if (interaction.commandName === "resumetime") {
     await member.roles.add(roleIdToResume).catch(() => null);
   }
 
-  return interaction.reply({
-    content: `Resumed ${targetUser}'s timer for **${roleName}**. Remaining: **${formatMs(remainingMs)}**.`,
-    ephemeral: false,
-  });
+const embed = new EmbedBuilder()
+  .setColor(0x2ECC71) // green = active
+  .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+  .setTitle("Timed Role Resumed")
+  .setTimestamp(new Date())
+  .addFields(
+    { name: "Command Run By", value: `${interaction.user}`, inline: true },
+    { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+    { name: "Target User", value: `${targetUser}`, inline: true },
+    { name: "Role", value: `${roleObj}`, inline: true },
+    { name: "Remaining", value: `**${formatMs(remainingMs)}**`, inline: true },
+    {
+      name: "New Expiry",
+      value: `<t:${Math.floor(entry.expiresAt / 1000)}:F>\n(<t:${Math.floor(entry.expiresAt / 1000)}:R>)`,
+      inline: true,
+    }
+  )
+  .setFooter({ text: "BoostMon • Active Timer" });
+
+return interaction.reply({ embeds: [embed] });
+
 }
 
 
