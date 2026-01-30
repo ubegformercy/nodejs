@@ -238,6 +238,36 @@ function removeMinutesForRole(userId, roleId, minutes) {
   return newExpiry;
 }
 
+function ensureUserRole(data, userId, roleId) {
+  if (!data[userId]) data[userId] = { roles: {} };
+  if (!data[userId].roles) data[userId].roles = {};
+  if (!data[userId].roles[roleId]) {
+    data[userId].roles[roleId] = {
+      expiresAt: 0,
+      warnChannelId: null,
+      warningsSent: {},
+    };
+  }
+  if (!data[userId].roles[roleId].warningsSent) {
+    data[userId].roles[roleId].warningsSent = {};
+  }
+  return data;
+}
+
+function clearRoleTimer(userId, roleId) {
+  const data = readData();
+  if (!data[userId]?.roles?.[roleId]) return false;
+
+  delete data[userId].roles[roleId];
+
+  if (Object.keys(data[userId].roles).length === 0) {
+    delete data[userId];
+  }
+
+  writeData(data);
+  return true;
+}
+
 
 
 //----------------------------------------
@@ -813,22 +843,6 @@ async function sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId) {
   }
 }
 
-async function canManageRole(guild, role) {
-  const me = await guild.members.fetchMe();
-
-  if (!me.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    return { ok: false, reason: "I don't have Manage Roles permission." };
-  }
-
-  if (me.roles.highest.position <= role.position) {
-    return {
-      ok: false,
-      reason: `I can't manage **${role.name}** because my highest role is not above it. Move my bot role higher than **${role.name}**.`,
-    };
-  }
-
-  return { ok: true, me };
-}
 
 async function cleanupAndWarn() {
   try {
@@ -922,15 +936,5 @@ if (!TOKEN) {
     console.error("Discord login failed:", err);
   });
 }
-//----------------------------------------
-// SECTION 9 — Discord Login (required)
-//----------------------------------------
 
-if (!TOKEN) {
-  console.error("DISCORD_TOKEN is missing. Bot cannot login.");
-} else {
-  client.login(TOKEN).catch((err) => {
-    console.error("Discord login failed:", err);
-  });
-}
 
