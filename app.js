@@ -142,9 +142,19 @@ function friendlyDiscordError(err) {
 
 function getTimeLeftMsForRole(userId, roleId) {
   const data = readData();
-  const expiresAt = data[userId]?.roles?.[roleId]?.expiresAt ?? 0;
+  const entry = data[userId]?.roles?.[roleId];
+
+  if (!entry) return 0;
+
+  // If paused, return the frozen remaining ms
+  if (entry.paused) {
+    return Math.max(0, Number(entry.pausedRemainingMs || 0));
+  }
+
+  const expiresAt = entry.expiresAt ?? 0;
   return Math.max(0, expiresAt - Date.now());
 }
+
 
 // Helper: when role not specified, choose a role timer deterministically (first key)
 function getFirstTimedRoleId(userId) {
@@ -500,14 +510,47 @@ if (interaction.commandName === "resumetime") {
     roleIdToResume = matching || timedRoleIds[0];
   }
 
-  const entry = timers[roleIdToResume];
-  if (!entry?.paused) {
-    const roleObjName = guild.roles.cache.get(roleIdToResume)?.name || "that role";
-    return interaction.reply({
-      content: `${targetUser}'s timer for **${roleObjName}** is not paused.`,
-      ephemeral: true,
-    });
+const entry = timers[roleIdToResume];
+
+// define roleObj FIRST so we can use it in messages
+const roleObj = guild.roles.cache.get(roleIdToResume);
+
+if (!entry?.paused) {
+  const roleName = roleObj?.name || "that role";
+  return interaction.reply({
+    content: `${targetUser}'s timer for **${roleName}** is not paused.`,
+    ephemeral: true,
+  });
+}
+
+const remainingMs = Math.max(0, Number(entry.pausedRemainingMs || 0));
+
+if (remainingMs <= 0) {
+  clearRoleTimer(targetUser.id, roleIdToResume);
+  if (member.roles.cache.has(roleIdToResume)) {
+    await member.roles.remove(roleIdToResume).catch(() => null);
   }
+  const roleName = roleObj?.name || "that role";
+  return interaction.reply({
+    content: `No time remained to resume for ${targetUser} on **${roleName}**. Timer cleared and role removed.`,
+    ephemeral: false,
+  });
+}
+
+// resume properly
+entry.expiresAt = Date.now() + remainingMs;
+entry.paused = false;
+delete entry.pausedAt;
+delete entry.pausedRemainingMs;
+entry.warningsSent = {};
+writeData(data);
+
+const roleName = roleObj?.name || "that role";
+return interaction.reply({
+  content: `Resumed ${targetUser}'s timer for **${roleName}**. Remaining: **${formatMs(remainingMs)}**.`,
+  ephemeral: false,
+});
+
 
   const roleObj = guild.roles.cache.get(roleIdToResume);
   if (!roleObj) {
