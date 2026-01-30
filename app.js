@@ -231,16 +231,24 @@ function removeMinutesForRole(userId, roleId, minutes) {
 function ensureUserRole(data, userId, roleId) {
   if (!data[userId]) data[userId] = { roles: {} };
   if (!data[userId].roles) data[userId].roles = {};
+
   if (!data[userId].roles[roleId]) {
     data[userId].roles[roleId] = {
       expiresAt: 0,
       warnChannelId: null,
       warningsSent: {},
+      pausedAt: null, // NEW
     };
   }
+
   if (!data[userId].roles[roleId].warningsSent) {
     data[userId].roles[roleId].warningsSent = {};
   }
+
+  if (data[userId].roles[roleId].pausedAt === undefined) {
+    data[userId].roles[roleId].pausedAt = null;
+  }
+
   return data;
 }
 
@@ -303,6 +311,13 @@ client.once("ready", async () => {
         o.setName("minutes").setDescription("Minutes to add").setRequired(true).setMinValue(1)
       )
       .addRoleOption((o) => o.setName("role").setDescription("Role to add time to (optional)").setRequired(false)),
+    
+    new SlashCommandBuilder()
+      .setName("pausetime")
+      .setDescription("Pause a user's timed role timer (stops countdown until resumed).")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+      .addUserOption((o) => o.setName("user").setDescription("User to pause").setRequired(true))
+      .addRoleOption((o) => o.setName("role").setDescription("Role to pause (optional)").setRequired(false)),
 
     new SlashCommandBuilder()
       .setName("removetime")
@@ -367,6 +382,79 @@ async function canManageRole(guild, role) {
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+  
+// ---------- /pausetime ----------
+if (interaction.commandName === "pausetime") {
+  if (!interaction.guild) {
+    return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+  }
+
+  const targetUser = interaction.options.getUser("user", true);
+  const roleOption = interaction.options.getRole("role"); // optional
+
+  const guild = interaction.guild;
+  const member = await guild.members.fetch(targetUser.id);
+
+  const data = readData();
+  const timers = data[targetUser.id]?.roles || {};
+  const timedRoleIds = Object.keys(timers);
+
+  if (timedRoleIds.length === 0) {
+    return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
+  }
+
+  // Pick role to pause
+  let roleIdToPause = null;
+
+  if (roleOption) {
+    roleIdToPause = roleOption.id;
+
+    if (!timers[roleIdToPause]) {
+      return interaction.reply({
+        content: `${targetUser} has no saved time for **${roleOption.name}**.`,
+        ephemeral: true,
+      });
+    }
+  } else {
+    // Prefer one they currently have; else first stored
+    const matching = timedRoleIds.find((rid) => member.roles.cache.has(rid));
+    roleIdToPause = matching || timedRoleIds[0];
+  }
+
+  const roleObj = guild.roles.cache.get(roleIdToPause);
+  if (!roleObj) {
+    return interaction.reply({
+      content: `That role no longer exists in this server, but a timer is stored for it. Use /cleartime to remove the stored timer.`,
+      ephemeral: true,
+    });
+  }
+
+  // Permission check (same as your other commands)
+  const permCheck = await canManageRole(guild, roleObj);
+  if (!permCheck.ok) {
+    return interaction.reply({ content: permCheck.reason, ephemeral: true });
+  }
+
+  // Ensure structure exists + pause
+  ensureUserRole(data, targetUser.id, roleIdToPause);
+
+  const entry = data[targetUser.id].roles[roleIdToPause];
+
+  if (entry.pausedAt) {
+    return interaction.reply({
+      content: `${targetUser}'s timer for **${roleObj.name}** is already paused.`,
+      ephemeral: true,
+    });
+  }
+
+  entry.pausedAt = Date.now();
+  writeData(data);
+
+  return interaction.reply({
+    content: `Paused ${targetUser}'s timer for **${roleObj.name}**.`,
+    ephemeral: false,
+  });
+}
 
   try {
     // ---------- /settime ----------
@@ -854,9 +942,11 @@ async function cleanupAndWarn() {
 
       for (const roleId of Object.keys(roles)) {
         const entry = roles[roleId];
+        // If paused, do nothing (no warnings, no expiry)
+        if (entry?.pausedAt) continue;
         const expiresAt = entry?.expiresAt ?? 0;
         const warnChannelId = entry?.warnChannelId ?? null;
-
+              
         if (!expiresAt || expiresAt <= 0) continue;
 
         const leftMs = expiresAt - now;
