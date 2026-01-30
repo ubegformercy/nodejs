@@ -680,9 +680,13 @@ if (interaction.commandName === "resumetime") {
       const expiresAt = setMinutesForRole(targetUser.id, role.id, minutes, warnChannelId);
       await member.roles.add(role.id);
 
+      const BOOSTMON_ICON_URL =
+        "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
+            
       const embed = new EmbedBuilder()
-        .setColor(0x2ECC71) // 🟢 green active timer
+        .setColor(0x2ECC71) // 🟢 active timer
         .setTitle("Timed Role Activated")
+        .setThumbnail(BOOSTMON_ICON_URL)
         .setTimestamp(new Date())
         .addFields(
           { name: "Command Run By", value: `${interaction.user}`, inline: true },
@@ -703,6 +707,7 @@ if (interaction.commandName === "resumetime") {
           { name: "Notes", value: warnModeText, inline: false }
         )
         .setFooter({ text: "BoostMon • Active Timer" });
+
       
       return interaction.reply({
         embeds: [embed],
