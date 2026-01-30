@@ -821,116 +821,195 @@ return interaction.reply({
 });
 }
 
-    // ---------- /removetime ----------
-    if (interaction.commandName === "removetime") {
-      if (!interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
-      }
+// ---------- /removetime ----------
+if (interaction.commandName === "removetime") {
+  if (!interaction.guild) {
+    return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+  }
 
-      const targetUser = interaction.options.getUser("user", true);
-      const minutes = interaction.options.getInteger("minutes", true);
-      const roleOption = interaction.options.getRole("role"); // optional
+  const targetUser = interaction.options.getUser("user", true);
+  const minutes = interaction.options.getInteger("minutes", true);
+  const roleOption = interaction.options.getRole("role"); // optional
 
-      const guild = interaction.guild;
-      const member = await guild.members.fetch(targetUser.id);
+  const guild = interaction.guild;
+  const member = await guild.members.fetch(targetUser.id);
 
-      const data = readData();
-      const timers = data[targetUser.id]?.roles || {};
-      const timedRoleIds = Object.keys(timers);
+  const data = readData();
+  const timers = data[targetUser.id]?.roles || {};
+  const timedRoleIds = Object.keys(timers);
 
-      if (timedRoleIds.length === 0) {
-        return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
-      }
+  if (timedRoleIds.length === 0) {
+    const embed = new EmbedBuilder()
+      .setColor(0x95A5A6) // grey
+      .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+      .setTitle("No Active Timed Roles")
+      .setTimestamp(new Date())
+      .addFields({ name: "Target User", value: `${targetUser}`, inline: true })
+      .setFooter({ text: "BoostMon" });
 
-      let roleIdToEdit = null;
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
 
-      if (roleOption) {
-        roleIdToEdit = roleOption.id;
-        if (!timers[roleIdToEdit]) {
-          return interaction.reply({
-            content: `${targetUser} has no saved time for **${roleOption.name}**.`,
-            ephemeral: true,
-          });
-        }
-      } else {
-        const matching = timedRoleIds.filter((rid) => member.roles.cache.has(rid));
+  // Decide which role to edit
+  let roleIdToEdit = null;
 
-        if (matching.length === 1) {
-          roleIdToEdit = matching[0];
-        } else if (matching.length === 0) {
-          if (timedRoleIds.length === 1) {
-            roleIdToEdit = timedRoleIds[0];
-          } else {
-            return interaction.reply({
-              content:
-                `${targetUser} has multiple timed roles stored, but none clearly matches their current roles.\n` +
-                `Please specify which role to remove time from.`,
-              ephemeral: true,
-            });
-          }
-       } else {
-          const names = matching
-            .map((rid) => guild.roles.cache.get(rid)?.name || rid)
-            .slice(0, 10)
-            .join(", ");
-        
-          const embed = new EmbedBuilder()
-            .setColor(0xF1C40F) // yellow = action needed
-            .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
-            .setTitle("Timed Role Reduced")
-            .setTimestamp(new Date())
-            .addFields(
-              { name: "Target User", value: `${targetUser}`, inline: true },
-              { name: "Time To Remove", value: `${minutes} minute(s)`, inline: true },
-              { name: "Action Required", value: "User has multiple timed roles. Please specify which role.", inline: false },
-              { name: "Possible Roles", value: names || "None found", inline: false }
-            )
-            .setFooter({ text: "BoostMon • Select a Role" });
-        
-          return interaction.reply({ embeds: [embed], ephemeral: true });
-        }
+  if (roleOption) {
+    roleIdToEdit = roleOption.id;
 
-      }
+    if (!timers[roleIdToEdit]) {
+      const embed = new EmbedBuilder()
+        .setColor(0xF1C40F) // yellow
+        .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+        .setTitle("No Saved Time For That Role")
+        .setTimestamp(new Date())
+        .addFields(
+          { name: "Target User", value: `${targetUser}`, inline: true },
+          { name: "Role", value: `${roleOption}`, inline: true }
+        )
+        .setFooter({ text: "BoostMon" });
 
-      const roleObj = guild.roles.cache.get(roleIdToEdit);
-      if (!roleObj) {
-        return interaction.reply({ content: "That role no longer exists in this server.", ephemeral: true });
-      }
-
-      const permCheck = await canManageRole(guild, roleObj);
-      if (!permCheck.ok) {
-        return interaction.reply({ content: permCheck.reason, ephemeral: true });
-      }
-
-      const result = removeMinutesForRole(targetUser.id, roleIdToEdit, minutes);
-
-      if (result === null) {
-        return interaction.reply({
-          content: `${targetUser} has no saved time for **${roleObj.name}**.`,
-          ephemeral: true,
-        });
-      }
-
-      if (result === 0) {
-        if (member.roles.cache.has(roleIdToEdit)) {
-          await member.roles.remove(roleIdToEdit);
-        }
-        return interaction.reply({
-          content:
-            `Removed **${minutes} minutes** from ${targetUser} for **${roleObj.name}**.\n` +
-            `Time expired — **${roleObj.name}** has been removed.`,
-          ephemeral: false,
-        });
-      }
-
-      const leftMs = Math.max(0, result - Date.now());
-      return interaction.reply({
-        content:
-          `Removed **${minutes} minutes** from ${targetUser} for **${roleObj.name}**.\n` +
-          `Remaining: **${formatMs(leftMs)}** (expires <t:${Math.floor(result / 1000)}:R>).`,
-        ephemeral: false,
-      });
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
+  } else {
+    const matching = timedRoleIds.filter((rid) => member.roles.cache.has(rid));
+
+    if (matching.length === 1) {
+      roleIdToEdit = matching[0];
+    } else if (matching.length === 0) {
+      if (timedRoleIds.length === 1) {
+        roleIdToEdit = timedRoleIds[0];
+      } else {
+        const possible = timedRoleIds
+          .map((rid) => guild.roles.cache.get(rid)?.name || rid)
+          .slice(0, 15)
+          .join(", ");
+
+        const embed = new EmbedBuilder()
+          .setColor(0xF1C40F) // yellow
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle("Please Specify a Role")
+          .setTimestamp(new Date())
+          .addFields(
+            { name: "Target User", value: `${targetUser}`, inline: true },
+            { name: "Time To Remove", value: `${minutes} minute(s)`, inline: true },
+            { name: "Reason", value: "Multiple timed roles are stored but none clearly matches current roles.", inline: false },
+            { name: "Possible Stored Roles", value: possible || "None", inline: false }
+          )
+          .setFooter({ text: "BoostMon • Select a Role" });
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+    } else {
+      const possible = matching
+        .map((rid) => guild.roles.cache.get(rid)?.name || rid)
+        .slice(0, 15)
+        .join(", ");
+
+      const embed = new EmbedBuilder()
+        .setColor(0xF1C40F) // yellow
+        .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+        .setTitle("Please Specify a Role")
+        .setTimestamp(new Date())
+        .addFields(
+          { name: "Target User", value: `${targetUser}`, inline: true },
+          { name: "Time To Remove", value: `${minutes} minute(s)`, inline: true },
+          { name: "Reason", value: "User currently has multiple timed roles.", inline: false },
+          { name: "Possible Roles", value: possible || "None", inline: false }
+        )
+        .setFooter({ text: "BoostMon • Select a Role" });
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+  }
+
+  const roleObj = guild.roles.cache.get(roleIdToEdit);
+  if (!roleObj) {
+    const embed = new EmbedBuilder()
+      .setColor(0xE67E22) // orange
+      .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+      .setTitle("Role No Longer Exists")
+      .setTimestamp(new Date())
+      .addFields(
+        { name: "Target User", value: `${targetUser}`, inline: true },
+        { name: "Stored Role ID", value: `${roleIdToEdit}`, inline: true },
+        { name: "Note", value: "That role was deleted from this server. Use /cleartime to remove the stored timer.", inline: false }
+      )
+      .setFooter({ text: "BoostMon" });
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  const permCheck = await canManageRole(guild, roleObj);
+  if (!permCheck.ok) {
+    return interaction.reply({ content: permCheck.reason, ephemeral: true });
+  }
+
+  const result = removeMinutesForRole(targetUser.id, roleIdToEdit, minutes);
+
+  if (result === null) {
+    const embed = new EmbedBuilder()
+      .setColor(0xF1C40F) // yellow
+      .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+      .setTitle("No Saved Time For That Role")
+      .setTimestamp(new Date())
+      .addFields(
+        { name: "Target User", value: `${targetUser}`, inline: true },
+        { name: "Role", value: `${roleObj}`, inline: true }
+      )
+      .setFooter({ text: "BoostMon" });
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // result is either 0 (expired) or an expiresAt timestamp (ms)
+  if (result === 0) {
+    if (member.roles.cache.has(roleIdToEdit)) {
+      await member.roles.remove(roleIdToEdit).catch(() => null);
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xE74C3C) // red
+      .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+      .setTitle("Timed Role Reduced (Expired)")
+      .setTimestamp(new Date())
+      .addFields(
+        { name: "Command Run By", value: `${interaction.user}`, inline: true },
+        { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        { name: "Target User", value: `${targetUser}`, inline: true },
+        { name: "Role", value: `${roleObj}`, inline: true },
+        { name: "Time Removed", value: `${minutes} minute(s)`, inline: true },
+        { name: "Result", value: "Time expired — role removed.", inline: true }
+      )
+      .setFooter({ text: "BoostMon • Timer Ended" });
+
+    return interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+
+  const leftMs = Math.max(0, result - Date.now());
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ECC71) // green
+    .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+    .setTitle("Timed Role Reduced")
+    .setTimestamp(new Date())
+    .addFields(
+      { name: "Command Run By", value: `${interaction.user}`, inline: true },
+      { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+      { name: "Target User", value: `${targetUser}`, inline: true },
+      { name: "Role", value: `${roleObj}`, inline: true },
+      { name: "Time Removed", value: `${minutes} minute(s)`, inline: true },
+      { name: "Remaining", value: `**${formatMs(leftMs)}**`, inline: true },
+      {
+        name: "Expires",
+        value: `<t:${Math.floor(result / 1000)}:F>\n(<t:${Math.floor(result / 1000)}:R>)`,
+        inline: false,
+      }
+    )
+    .setFooter({ text: "BoostMon • Active Timer" });
+
+  return interaction.reply({ embeds: [embed], ephemeral: false });
+}
+
 
     // ---------- /cleartime ----------
     if (interaction.commandName === "cleartime") {
