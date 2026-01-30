@@ -4,7 +4,6 @@
 
 const express = require("express");
 const path = require("path");
-const fs = require("fs");
 const {
   Client,
   GatewayIntentBits,
@@ -16,6 +15,7 @@ const {
   EmbedBuilder,  
 } = require("discord.js");
 const indexRouter = require("./routes/index");
+const db = require("./db");
 const BOOSTMON_ICON_URL = "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
 console.log("=== BoostMon app.js booted ===");
 console.log("DISCORD_TOKEN present:", Boolean(process.env.DISCORD_TOKEN));
@@ -39,96 +39,10 @@ const CHECK_INTERVAL_MS = 30_000;
 
 
 //----------------------------------------
-// SECTION 2 — Storage (data.json)
-//----------------------------------------
-// Data format:
-// {
-//   "<userId>": {
-//     "roles": {
-//       "<roleId>": {
-//         "expiresAt": 1234567890000,
-//         "warnChannelId": "123..." | null,
-//         "warningsSent": { "10": true, "1": true }
-//       }
-//     }
-//   }
-// }
-
-//----------------------------------------
-// SECTION 2 — Storage (data.json)
-// ATOMIC WRITES + BACKUP + SAFE READ
+// SECTION 2 — Database (PostgreSQL)
 //----------------------------------------
 
-const DATA_PATH = path.resolve(__dirname, "data.json");
-const DATA_TMP_PATH = path.resolve(__dirname, "data.json.tmp");
-const DATA_BAK_PATH = path.resolve(__dirname, "data.json.bak");
-
-function safeParseJson(text, label = "json") {
-  try {
-    return { ok: true, value: JSON.parse(text) };
-  } catch (e) {
-    return { ok: false, error: `Failed parsing ${label}: ${e?.message || e}` };
-  }
-}
-
-function readJsonFileIfExists(filePath) {
-  try {
-    if (!fs.existsSync(filePath)) return { ok: false, error: "missing" };
-    const raw = fs.readFileSync(filePath, "utf8");
-    const parsed = safeParseJson(raw, path.basename(filePath));
-    if (!parsed.ok) return parsed;
-    return { ok: true, value: parsed.value };
-  } catch (e) {
-    return { ok: false, error: `Read failed for ${path.basename(filePath)}: ${e?.message || e}` };
-  }
-}
-
-function readData() {
-  // 1️⃣ Try main file first
-  const main = readJsonFileIfExists(DATA_PATH);
-  if (main.ok) return main.value;
-
-  // 2️⃣ Fallback to backup if main is bad
-  const backup = readJsonFileIfExists(DATA_BAK_PATH);
-  if (backup.ok) {
-    console.warn(`[WARN] Using backup data.json.bak because main failed: ${main.error}`);
-    return backup.value;
-  }
-
-  // 3️⃣ Nothing usable → start clean
-  if (main.error !== "missing") console.warn(`[WARN] data.json unreadable: ${main.error}`);
-  if (backup.error !== "missing") console.warn(`[WARN] data.json.bak unreadable: ${backup.error}`);
-
-  return {};
-}
-
-function writeData(obj) {
-  try {
-    const json = JSON.stringify(obj, null, 2);
-
-    // Keep last known good version
-    if (fs.existsSync(DATA_PATH)) {
-      try {
-        fs.copyFileSync(DATA_PATH, DATA_BAK_PATH);
-      } catch (e) {
-        console.warn(`[WARN] Could not create backup: ${e?.message || e}`);
-      }
-    }
-
-    // Write to temp file first
-    fs.writeFileSync(DATA_TMP_PATH, json, "utf8");
-
-    // Atomic swap (do NOT delete the original first)
-    fs.renameSync(DATA_TMP_PATH, DATA_PATH);
-  } catch (e) {
-    console.error(`[ERROR] writeData failed: ${e?.message || e}`);
-
-    // Cleanup temp file if something went wrong
-    try {
-      if (fs.existsSync(DATA_TMP_PATH)) fs.unlinkSync(DATA_TMP_PATH);
-    } catch {}
-  }
-}
+// Database is initialized on startup (see SECTION 5)
 
 
 
@@ -186,29 +100,14 @@ function friendlyDiscordError(err) {
 }
 
 function getTimeLeftMsForRole(userId, roleId) {
-  const data = readData();
-  const entry = data[userId]?.roles?.[roleId];
-
-  if (!entry) return 0;
-
-  // If paused, return the frozen remaining ms
-  if (entry.paused) {
-    return Math.max(0, Number(entry.pausedRemainingMs || 0));
-  }
-
-  const expiresAt = entry.expiresAt ?? 0;
-  return Math.max(0, expiresAt - Date.now());
+  // This will be handled by cleanupAndWarn which queries the DB
+  // For immediate queries, use db.getTimerForRole() instead
+  return 0;
 }
 
-
 // Helper: when role not specified, choose a role timer deterministically (first key)
-function getFirstTimedRoleId(userId) {
-  const data = readData();
-  const roles = data[userId]?.roles;
-  if (!roles) return null;
-  const ids = Object.keys(roles);
-  if (ids.length === 0) return null;
-  return ids[0];
+async function getFirstTimedRoleId(userId) {
+  return await db.getFirstTimedRoleForUser(userId);
 }
 
 
@@ -219,37 +118,13 @@ function getFirstTimedRoleId(userId) {
 
 // Add minutes to a specific role timer (user+role)
 function addMinutesForRole(userId, roleId, minutes) {
-  const data = readData();
-  const now = Date.now();
-  ensureUserRole(data, userId, roleId);
-
-  const current = data[userId].roles[roleId]?.expiresAt ?? 0;
-  const base = current > now ? current : now;
-  const expiresAt = base + minutes * 60 * 1000;
-
-  data[userId].roles[roleId].expiresAt = expiresAt;
-
-  // Clear warnings so they can re-fire after extensions
-  data[userId].roles[roleId].warningsSent = {};
-
-  writeData(data);
-  return expiresAt;
+  return db.addMinutesForRole(userId, roleId, minutes);
 }
 
 // Set minutes exactly for a role timer (user+role) to now+minutes.
 // Also sets warnChannelId (nullable) and resets warningsSent.
 function setMinutesForRole(userId, roleId, minutes, warnChannelIdOrNull) {
-  const data = readData();
-  const now = Date.now();
-  ensureUserRole(data, userId, roleId);
-
-  const expiresAt = now + minutes * 60 * 1000;
-  data[userId].roles[roleId].expiresAt = expiresAt;
-  data[userId].roles[roleId].warnChannelId = warnChannelIdOrNull ?? null;
-  data[userId].roles[roleId].warningsSent = {};
-
-  writeData(data);
-  return expiresAt;
+  return db.setMinutesForRole(userId, roleId, minutes, warnChannelIdOrNull ?? null);
 }
 
 // Remove minutes from a role timer (user+role)
@@ -258,70 +133,11 @@ function setMinutesForRole(userId, roleId, minutes, warnChannelIdOrNull) {
 // - new expiresAt timestamp if still active
 // - null if no timer existed
 function removeMinutesForRole(userId, roleId, minutes) {
-  const data = readData();
-  if (!data[userId]?.roles?.[roleId]) return null;
-
-  const now = Date.now();
-  const current = data[userId].roles[roleId].expiresAt;
-  const newExpiry = current - minutes * 60 * 1000;
-
-  if (newExpiry <= now) {
-    delete data[userId].roles[roleId];
-    if (Object.keys(data[userId].roles).length === 0) {
-      delete data[userId];
-    }
-    writeData(data);
-    return 0;
-  }
-
-  data[userId].roles[roleId].expiresAt = newExpiry;
-
-  // Clear warnings so it can re-evaluate correctly after reduction
-  data[userId].roles[roleId].warningsSent = {};
-
-  writeData(data);
-  return newExpiry;
-}
-
-function ensureUserRole(data, userId, roleId) {
-  if (!data[userId]) data[userId] = { roles: {} };
-  if (!data[userId].roles) data[userId].roles = {};
-
-  if (!data[userId].roles[roleId]) {
-    data[userId].roles[roleId] = {
-      expiresAt: 0,
-      warnChannelId: null,
-      warningsSent: {},
-      paused: false,
-      pausedAt: null,
-      pausedRemainingMs: 0,
-    };
-  }
-
-
-  if (!data[userId].roles[roleId].warningsSent) {
-    data[userId].roles[roleId].warningsSent = {};
-  }
-
-  if (data[userId].roles[roleId].pausedAt === undefined) {
-    data[userId].roles[roleId].pausedAt = null;
-  }
-
-  return data;
+  return db.removeMinutesForRole(userId, roleId, minutes);
 }
 
 function clearRoleTimer(userId, roleId) {
-  const data = readData();
-  if (!data[userId]?.roles?.[roleId]) return false;
-
-  delete data[userId].roles[roleId];
-
-  if (Object.keys(data[userId].roles).length === 0) {
-    delete data[userId];
-  }
-
-  writeData(data);
-  return true;
+  return db.clearRoleTimer(userId, roleId);
 }
 
 
@@ -336,6 +152,9 @@ const client = new Client({
 
 client.once("ready", async () => {
   console.log(`BoostMon logged in as ${client.user.tag}`);
+
+  // Initialize database
+  await db.initDatabase();
 
   if (!CLIENT_ID || !GUILD_ID) {
     console.log("Missing DISCORD_CLIENT_ID or DISCORD_GUILD_ID; skipping command registration.");
@@ -455,9 +274,8 @@ if (interaction.commandName === "pausetime") {
   const guild = interaction.guild;
   const member = await guild.members.fetch(targetUser.id);
 
-  const data = readData();
-  const timers = data[targetUser.id]?.roles || {};
-  const timedRoleIds = Object.keys(timers);
+  const timers = await db.getTimersForUser(targetUser.id);
+  const timedRoleIds = timers.map(t => t.role_id);
 
   if (timedRoleIds.length === 0) {
     return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
@@ -467,7 +285,7 @@ if (interaction.commandName === "pausetime") {
 
   if (roleOption) {
     roleIdToPause = roleOption.id;
-    if (!timers[roleIdToPause]) {
+    if (!timedRoleIds.includes(roleIdToPause)) {
       return interaction.reply({
         content: `${targetUser} has no saved time for **${roleOption.name}**.`,
         ephemeral: true,
@@ -493,42 +311,32 @@ if (interaction.commandName === "pausetime") {
     return interaction.reply({ content: permCheck.reason, ephemeral: true });
   }
 
-  ensureUserRole(data, targetUser.id, roleIdToPause);
-  const entry = data[targetUser.id].roles[roleIdToPause];
+  const entry = await db.getTimerForRole(targetUser.id, roleIdToPause);
 
-  if (entry.paused) {
+  if (entry?.paused) {
     return interaction.reply({
       content: `${targetUser}'s timer for **${roleName}** is already paused.`,
       ephemeral: true,
     });
   }
 
-  const now = Date.now();
-  const expiresAt = Number(entry.expiresAt || 0);
-  const remainingMs = Math.max(0, expiresAt - now);
+  const remainingMs = await db.pauseTimer(targetUser.id, roleIdToPause);
 
-  entry.paused = true;
-  entry.pausedAt = now;
-  entry.pausedRemainingMs = remainingMs;
+  const embed = new EmbedBuilder()
+    .setColor(0xF1C40F) // yellow = paused
+    .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+    .setTitle("Timed Role Paused")
+    .setTimestamp(new Date())
+    .addFields(
+      { name: "Command Run By", value: `${interaction.user}`, inline: true },
+      { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+      { name: "Target User", value: `${targetUser}`, inline: true },
+      { name: "Role", value: `${roleObj}`, inline: true },
+      { name: "Remaining", value: `**${formatMs(remainingMs)}**`, inline: true }
+    )
+    .setFooter({ text: "BoostMon • Paused Timer" });
 
-  writeData(data);
-
-const embed = new EmbedBuilder()
-  .setColor(0xF1C40F) // yellow = paused
-  .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
-  .setTitle("Timed Role Paused")
-  .setTimestamp(new Date())
-  .addFields(
-    { name: "Command Run By", value: `${interaction.user}`, inline: true },
-    { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
-    { name: "Target User", value: `${targetUser}`, inline: true },
-    { name: "Role", value: `${roleObj}`, inline: true },
-    { name: "Remaining", value: `**${formatMs(remainingMs)}**`, inline: true }
-  )
-  .setFooter({ text: "BoostMon • Paused Timer" });
-
-return interaction.reply({ embeds: [embed] });
-
+  return interaction.reply({ embeds: [embed] });
 }
 
 
@@ -544,9 +352,8 @@ if (interaction.commandName === "resumetime") {
   const guild = interaction.guild;
   const member = await guild.members.fetch(targetUser.id);
 
-  const data = readData();
-  const timers = data[targetUser.id]?.roles || {};
-  const timedRoleIds = Object.keys(timers);
+  const timers = await db.getTimersForUser(targetUser.id);
+  const timedRoleIds = timers.map(t => t.role_id);
 
   if (timedRoleIds.length === 0) {
     return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
@@ -558,7 +365,7 @@ if (interaction.commandName === "resumetime") {
   if (roleOption) {
     roleIdToResume = roleOption.id;
 
-    if (!timers[roleIdToResume]) {
+    if (!timedRoleIds.includes(roleIdToResume)) {
       return interaction.reply({
         content: `${targetUser} has no saved time for **${roleOption.name}**.`,
         ephemeral: true,
@@ -572,7 +379,7 @@ if (interaction.commandName === "resumetime") {
   const roleObj = guild.roles.cache.get(roleIdToResume);
   const roleName = roleObj?.name || "that role";
 
-  const entry = timers[roleIdToResume];
+  const entry = await db.getTimerForRole(targetUser.id, roleIdToResume);
 
   if (!entry?.paused) {
     return interaction.reply({
@@ -582,7 +389,7 @@ if (interaction.commandName === "resumetime") {
   }
 
   if (!roleObj) {
-    clearRoleTimer(targetUser.id, roleIdToResume);
+    await db.clearRoleTimer(targetUser.id, roleIdToResume);
     return interaction.reply({
       content: `That role no longer exists in this server, so I cleared the saved timer for ${targetUser}.`,
       ephemeral: false,
@@ -594,10 +401,10 @@ if (interaction.commandName === "resumetime") {
     return interaction.reply({ content: permCheck.reason, ephemeral: true });
   }
 
-  const remainingMs = Math.max(0, Number(entry.pausedRemainingMs || 0));
+  const remainingMs = Math.max(0, Number(entry.paused_remaining_ms || 0));
 
   if (remainingMs <= 0) {
-    clearRoleTimer(targetUser.id, roleIdToResume);
+    await db.clearRoleTimer(targetUser.id, roleIdToResume);
     if (member.roles.cache.has(roleIdToResume)) {
       await member.roles.remove(roleIdToResume).catch(() => null);
     }
@@ -608,12 +415,7 @@ if (interaction.commandName === "resumetime") {
   }
 
   // Resume properly
-  entry.expiresAt = Date.now() + remainingMs;
-  entry.paused = false;
-  entry.pausedAt = null;
-  entry.pausedRemainingMs = 0;
-  entry.warningsSent = {};
-  writeData(data);
+  const newExpiresAt = await db.resumeTimer(targetUser.id, roleIdToResume);
 
   // Ensure role is on the member
   if (!member.roles.cache.has(roleIdToResume)) {
@@ -633,7 +435,7 @@ const embed = new EmbedBuilder()
     { name: "Remaining", value: `**${formatMs(remainingMs)}**`, inline: true },
     {
       name: "New Expiry",
-      value: `<t:${Math.floor(entry.expiresAt / 1000)}:F>\n(<t:${Math.floor(entry.expiresAt / 1000)}:R>)`,
+      value: `<t:${Math.floor(newExpiresAt / 1000)}:F>\n(<t:${Math.floor(newExpiresAt / 1000)}:R>)`,
       inline: true,
     }
   )
@@ -700,7 +502,7 @@ return interaction.reply({ embeds: [embed] });
 
       const member = await guild.members.fetch(targetUser.id);
 
-      const expiresAt = setMinutesForRole(targetUser.id, role.id, minutes, warnChannelId);
+      const expiresAt = await setMinutesForRole(targetUser.id, role.id, minutes, warnChannelId);
       await member.roles.add(role.id);
 
 
@@ -746,9 +548,8 @@ return interaction.reply({ embeds: [embed] });
       const guild = interaction.guild;
       const member = await guild.members.fetch(targetUser.id);
 
-      const data = readData();
-      const timers = data[targetUser.id]?.roles || {};
-      const timedRoleIds = Object.keys(timers);
+      const timers = await db.getTimersForUser(targetUser.id);
+      const timedRoleIds = timers.map(t => t.role_id);
 
       let roleIdToEdit = null;
 
@@ -780,7 +581,7 @@ return interaction.reply({ embeds: [embed] });
         return interaction.reply({ content: permCheck.reason, ephemeral: true });
       }
 
-      const expiresAt = addMinutesForRole(targetUser.id, role.id, minutes);
+      const expiresAt = await addMinutesForRole(targetUser.id, role.id, minutes);
 
       if (!member.roles.cache.has(role.id)) {
         await member.roles.add(role.id);
@@ -826,9 +627,8 @@ if (interaction.commandName === "removetime") {
   const guild = interaction.guild;
   const member = await guild.members.fetch(targetUser.id);
 
-  const data = readData();
-  const timers = data[targetUser.id]?.roles || {};
-  const timedRoleIds = Object.keys(timers);
+  const timers = await db.getTimersForUser(targetUser.id);
+  const timedRoleIds = timers.map(t => t.role_id);
 
   if (timedRoleIds.length === 0) {
     const embed = new EmbedBuilder()
@@ -848,7 +648,7 @@ if (interaction.commandName === "removetime") {
   if (roleOption) {
     roleIdToEdit = roleOption.id;
 
-    if (!timers[roleIdToEdit]) {
+    if (!timedRoleIds.includes(roleIdToEdit)) {
       const embed = new EmbedBuilder()
         .setColor(0xF1C40F) // yellow
         .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
@@ -936,7 +736,7 @@ if (interaction.commandName === "removetime") {
     return interaction.reply({ content: permCheck.reason, ephemeral: true });
   }
 
-  const result = removeMinutesForRole(targetUser.id, roleIdToEdit, minutes);
+  const result = await removeMinutesForRole(targetUser.id, roleIdToEdit, minutes);
 
   if (result === null) {
     const embed = new EmbedBuilder()
@@ -1015,9 +815,8 @@ if (interaction.commandName === "removetime") {
       const guild = interaction.guild;
       const member = await guild.members.fetch(targetUser.id);
 
-      const data = readData();
-      const timers = data[targetUser.id]?.roles || {};
-      const timedRoleIds = Object.keys(timers);
+      const timers = await db.getTimersForUser(targetUser.id);
+      const timedRoleIds = timers.map(t => t.role_id);
 
       if (timedRoleIds.length === 0) {
         return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
@@ -1028,7 +827,7 @@ if (interaction.commandName === "removetime") {
 
       if (roleOption) {
         roleIdToClear = roleOption.id;
-        if (!timers[roleIdToClear]) {
+        if (!timedRoleIds.includes(roleIdToClear)) {
           return interaction.reply({
             content: `${targetUser} has no saved time for **${roleOption.name}**.`,
             ephemeral: true,
@@ -1043,7 +842,7 @@ if (interaction.commandName === "removetime") {
       const roleObj = guild.roles.cache.get(roleIdToClear);
       if (!roleObj) {
         // Role deleted, but timer exists. Clear timer anyway.
-        clearRoleTimer(targetUser.id, roleIdToClear);
+        await db.clearRoleTimer(targetUser.id, roleIdToClear);
         return interaction.reply({
           content: `Cleared saved time for ${targetUser}. (Role no longer exists in this server.)`,
           ephemeral: false,
@@ -1055,16 +854,14 @@ if (interaction.commandName === "removetime") {
         return interaction.reply({ content: permCheck.reason, ephemeral: true });
       }
 
-      const cleared = clearRoleTimer(targetUser.id, roleIdToClear);
+      await db.clearRoleTimer(targetUser.id, roleIdToClear);
 
       if (member.roles.cache.has(roleIdToClear)) {
         await member.roles.remove(roleIdToClear);
       }
 
       return interaction.reply({
-        content: cleared
-          ? `Cleared saved time for ${targetUser} on **${roleObj.name}** and removed the role.`
-          : `No saved time existed for ${targetUser} on **${roleObj.name}**.`,
+        content: `Cleared saved time for ${targetUser} on **${roleObj.name}** and removed the role.`,
         ephemeral: false,
       });
     }
@@ -1075,36 +872,58 @@ if (interaction.commandName === "removetime") {
       const role = interaction.options.getRole("role"); // optional
 
       if (role) {
-        const left = getTimeLeftMsForRole(targetUser.id, role.id);
-        if (left <= 0) {
+        const timer = await db.getTimerForRole(targetUser.id, role.id);
+        if (!timer) {
+          return interaction.reply({
+            content: `${targetUser} has 0 time left for ${role.name}.`,
+            ephemeral: true,
+          });
+        }
+        
+        // Calculate remaining time
+        let remainingMs = timer.expires_at - Date.now();
+        if (timer.paused && timer.paused_remaining_ms) {
+          remainingMs = timer.paused_remaining_ms;
+        }
+        
+        if (remainingMs <= 0) {
           return interaction.reply({
             content: `${targetUser} has 0 time left for ${role.name}.`,
             ephemeral: true,
           });
         }
         return interaction.reply({
-          content: `${targetUser} has ${formatMs(left)} remaining for ${role.name} (expires <t:${Math.floor((Date.now() + left) / 1000)}:R>).`,
+          content: `${targetUser} has ${formatMs(remainingMs)} remaining for ${role.name} (expires <t:${Math.floor((Date.now() + remainingMs) / 1000)}:R>).`,
           ephemeral: true,
         });
       }
 
-      const currentRoleId = getFirstTimedRoleId(targetUser.id);
+      const currentRoleId = await getFirstTimedRoleId(targetUser.id);
       if (!currentRoleId) {
         return interaction.reply({ content: `${targetUser} has 0 time left.`, ephemeral: true });
       }
 
-      const left = getTimeLeftMsForRole(targetUser.id, currentRoleId);
+      const timer = await db.getTimerForRole(targetUser.id, currentRoleId);
       const roleObj = interaction.guild?.roles?.cache?.get(currentRoleId);
 
-      if (left <= 0) {
+      if (!timer) {
+        return interaction.reply({ content: `${targetUser} has 0 time left.`, ephemeral: true });
+      }
+
+      let remainingMs = timer.expires_at - Date.now();
+      if (timer.paused && timer.paused_remaining_ms) {
+        remainingMs = timer.paused_remaining_ms;
+      }
+
+      if (remainingMs <= 0) {
         return interaction.reply({ content: `${targetUser} has 0 time left.`, ephemeral: true });
       }
 
       return interaction.reply({
         content:
-          `${targetUser} has ${formatMs(left)} remaining` +
+          `${targetUser} has ${formatMs(remainingMs)} remaining` +
           (roleObj ? ` for ${roleObj.name}` : "") +
-          ` (expires <t:${Math.floor((Date.now() + left) / 1000)}:R>).`,
+          ` (expires <t:${Math.floor((Date.now() + remainingMs) / 1000)}:R>).`,
         ephemeral: true,
       });
     }
@@ -1246,67 +1065,57 @@ async function cleanupAndWarn() {
     const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
     if (!guild) return;
 
-    const data = readData();
     const now = Date.now();
-    let changed = false;
-
     const me = await guild.members.fetchMe().catch(() => null);
     const canManage = Boolean(me?.permissions?.has(PermissionFlagsBits.ManageRoles));
 
-    for (const userId of Object.keys(data)) {
-      const roles = data[userId]?.roles || {};
+    // Get all active timers from database
+    const allTimers = await db.getAllActiveTimers().catch(() => []);
 
-      for (const roleId of Object.keys(roles)) {
-      const entry = roles[roleId];
-      const expiresAt = entry?.expiresAt ?? 0;
-      const warnChannelId = entry?.warnChannelId ?? null;
-      
-      if (entry?.paused) continue;
-              
-        if (!expiresAt || expiresAt <= 0) continue;
+    for (const entry of allTimers) {
+      const userId = entry.user_id;
+      const roleId = entry.role_id;
+      const expiresAt = entry.expires_at;
+      const warnChannelId = entry.warn_channel_id;
+      const isPaused = entry.paused;
+      const pausedRemainingMs = entry.paused_remaining_ms;
 
-        const leftMs = expiresAt - now;
+      // Skip paused timers
+      if (isPaused) continue;
 
-        // Expired -> remove role + record
-        if (leftMs <= 0) {
-          if (canManage) {
-            const member = await guild.members.fetch(userId).catch(() => null);
-            const roleObj = guild.roles.cache.get(roleId);
-            if (member && roleObj && me.roles.highest.position > roleObj.position) {
-              await member.roles.remove(roleId).catch(() => null);
-            }
-          }
+      if (!expiresAt || expiresAt <= 0) continue;
 
-          await sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId).catch(() => null);
+      const leftMs = expiresAt - now;
 
-          delete data[userId].roles[roleId];
-          changed = true;
-          continue;
-        }
-
-        // Warnings (use actual minutes left)
-        const leftMin = Math.ceil(leftMs / 60_000);
-
-        if (!entry.warningsSent) entry.warningsSent = {};
-
-        for (const thresholdMin of WARNING_THRESHOLDS_MIN) {
-          const key = String(thresholdMin);
-
-          if (leftMin <= thresholdMin && !entry.warningsSent[key]) {
-            await sendWarningOrDm(guild, userId, roleId, leftMin, warnChannelId).catch(() => null);
-            entry.warningsSent[key] = true;
-            changed = true;
+      // Expired -> remove role + record
+      if (leftMs <= 0) {
+        if (canManage) {
+          const member = await guild.members.fetch(userId).catch(() => null);
+          const roleObj = guild.roles.cache.get(roleId);
+          if (member && roleObj && me.roles.highest.position > roleObj.position) {
+            await member.roles.remove(roleId).catch(() => null);
           }
         }
+
+        await sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId).catch(() => null);
+        await db.clearRoleTimer(userId, roleId).catch(() => null);
+        continue;
       }
 
-      if (data[userId] && Object.keys(data[userId].roles || {}).length === 0) {
-        delete data[userId];
-        changed = true;
+      // Warnings (use actual minutes left)
+      const leftMin = Math.ceil(leftMs / 60_000);
+
+      const warningsSent = entry.warnings_sent || {};
+
+      for (const thresholdMin of WARNING_THRESHOLDS_MIN) {
+        const key = String(thresholdMin);
+
+        if (leftMin <= thresholdMin && !warningsSent[key]) {
+          await sendWarningOrDm(guild, userId, roleId, leftMin, warnChannelId).catch(() => null);
+          await db.markWarningAsSent(userId, roleId, thresholdMin).catch(() => null);
+        }
       }
     }
-
-    if (changed) writeData(data);
   } catch (e) {
     console.error("cleanupAndWarn error:", e);
   }
@@ -1322,6 +1131,19 @@ setInterval(() => {
 
 client.on("error", (err) => console.error("Discord client error:", err));
 process.on("unhandledRejection", (reason) => console.error("Unhandled rejection:", reason));
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM received. Closing database pool...");
+  await db.closePool().catch(err => console.error("Error closing database pool:", err));
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("SIGINT received. Closing database pool...");
+  await db.closePool().catch(err => console.error("Error closing database pool:", err));
+  process.exit(0);
+});
 
 if (!TOKEN) {
   console.error("DISCORD_TOKEN is missing. Bot cannot log in.");
