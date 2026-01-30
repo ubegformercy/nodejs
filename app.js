@@ -1,3 +1,5 @@
+const BOOSTMON_ICON_URL = "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
+
 //----------------------------------------
 // SECTION 0 — Imports & Boot Logging
 //----------------------------------------
@@ -680,8 +682,7 @@ if (interaction.commandName === "resumetime") {
       const expiresAt = setMinutesForRole(targetUser.id, role.id, minutes, warnChannelId);
       await member.roles.add(role.id);
 
-      const BOOSTMON_ICON_URL =
-        "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
+
             
       const embed = new EmbedBuilder()
         .setColor(0x2ECC71) // 🟢 active timer
