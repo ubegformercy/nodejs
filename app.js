@@ -1024,13 +1024,16 @@ if (interaction.commandName === "removetime") {
         return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
       }
 
+      // Defer because this can take a while
+      await interaction.deferReply().catch(() => null);
+
       const roleOption = interaction.options.getRole("role", true);
       const guild = interaction.guild;
 
       // Get all members with this role
       const members = await guild.members.fetch().catch(() => null);
       if (!members) {
-        return interaction.reply({ content: "Could not fetch server members.", ephemeral: true });
+        return interaction.editReply({ content: "Could not fetch server members." });
       }
 
       const membersWithRole = members.filter(m => m.roles.cache.has(roleOption.id));
@@ -1047,7 +1050,7 @@ if (interaction.commandName === "removetime") {
             { name: "Status", value: "No members have this role", inline: false }
           )
           .setFooter({ text: "BoostMon • Role Status" });
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       // Get timers for all members with this role
@@ -1118,7 +1121,7 @@ if (interaction.commandName === "removetime") {
         )
         .setFooter({ text: `BoostMon • Showing ${Math.min(timersList.length, 20)} members` });
 
-      return interaction.reply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed] });
     }
 
   } catch (err) {
