@@ -1673,12 +1673,33 @@ async function executeScheduledRolestatus(guild, now) {
           )
           .setFooter({ text: `BoostMon • Automated Report (showing ${Math.min(timersList.length, 20)}/${totalMembers})` });
 
-        await channel.send({ embeds: [embed] }).catch((err) => {
-          console.warn(`[SCHEDULED-REPORT] Failed to send report to ${channel.name}: ${err.message}`);
-        });
+        // Delete old message if it exists
+        if (schedule.last_message_id) {
+          try {
+            const oldMessage = await channel.messages.fetch(schedule.last_message_id).catch(() => null);
+            if (oldMessage) {
+              await oldMessage.delete().catch(() => null);
+              console.log(`[SCHEDULED-REPORT] Deleted old message ${schedule.last_message_id} from ${channel.name}`);
+            }
+          } catch (err) {
+            console.warn(`[SCHEDULED-REPORT] Could not delete old message: ${err.message}`);
+          }
+        }
 
-        // Update last report time
+        // Send new message
+        let newMessage = null;
+        try {
+          newMessage = await channel.send({ embeds: [embed] });
+          console.log(`[SCHEDULED-REPORT] Sent new report to ${channel.name} (message ID: ${newMessage.id})`);
+        } catch (err) {
+          console.warn(`[SCHEDULED-REPORT] Failed to send report to ${channel.name}: ${err.message}`);
+        }
+
+        // Update last report time and message ID
         await db.updateRolestatusLastReport(guild.id, schedule.role_id, schedule.channel_id);
+        if (newMessage) {
+          await db.updateRolestatusLastMessageId(guild.id, schedule.role_id, schedule.channel_id, newMessage.id);
+        }
       } catch (err) {
         console.error(`[SCHEDULED-REPORT] Error processing schedule for role ${schedule.role_id}:`, err.message);
       }

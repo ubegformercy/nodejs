@@ -76,6 +76,7 @@ async function initDatabase() {
         interval_minutes INTEGER NOT NULL,
         enabled BOOLEAN DEFAULT true,
         last_report_at TIMESTAMP,
+        last_message_id VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(guild_id, role_id, channel_id)
@@ -527,6 +528,19 @@ async function updateRolestatusLastReport(guildId, roleId, channelId) {
   }
 }
 
+async function updateRolestatusLastMessageId(guildId, roleId, channelId, messageId) {
+  try {
+    await pool.query(
+      "UPDATE rolestatus_schedules SET last_message_id = $4, updated_at = CURRENT_TIMESTAMP WHERE guild_id = $1 AND role_id = $2 AND channel_id = $3",
+      [guildId, roleId, channelId, messageId]
+    );
+    return true;
+  } catch (err) {
+    console.error("updateRolestatusLastMessageId error:", err);
+    return false;
+  }
+}
+
 async function closePool() {
   await pool.end();
   console.log("Database connection pool closed");
@@ -558,5 +572,6 @@ module.exports = {
   getAllRolestatusSchedules,
   disableRolestatusSchedule,
   updateRolestatusLastReport,
+  updateRolestatusLastMessageId,
   closePool,
 };
