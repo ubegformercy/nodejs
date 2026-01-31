@@ -200,7 +200,7 @@ async function pauseTimer(userId, roleId) {
     if (!timer) return null;
 
     const now = Date.now();
-    const remainingMs = Math.max(0, timer.expires_at - now);
+    const remainingMs = Math.max(0, Number(timer.expires_at) - now);
 
     await pool.query(
       `UPDATE role_timers 
@@ -220,7 +220,7 @@ async function resumeTimer(userId, roleId) {
     const timer = await getTimerForRole(userId, roleId);
     if (!timer || !timer.paused) return null;
 
-    const remainingMs = Math.max(0, timer.paused_remaining_ms);
+    const remainingMs = Math.max(0, Number(timer.paused_remaining_ms || 0));
     const newExpiresAt = Date.now() + remainingMs;
 
     const result = await pool.query(
