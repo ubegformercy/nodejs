@@ -215,7 +215,7 @@ client.once("ready", async () => {
       .addRoleOption((o) => o.setName("role").setDescription("Role to clear (optional)").setRequired(false)),
 
     new SlashCommandBuilder()
-      .setName("timeleft")
+      .setName("showtime")
       .setDescription("Show remaining timed role time for a user (and optional role).")
       .addUserOption((o) => o.setName("user").setDescription("User to check (default: you)").setRequired(false))
       .addRoleOption((o) => o.setName("role").setDescription("Role to check (optional)").setRequired(false)),
@@ -866,8 +866,8 @@ if (interaction.commandName === "removetime") {
       });
     }
 
-    // ---------- /timeleft ----------
-    if (interaction.commandName === "timeleft") {
+    // ---------- /showtime ----------
+    if (interaction.commandName === "showtime") {
       const targetUser = interaction.options.getUser("user") ?? interaction.user;
       const role = interaction.options.getRole("role"); // optional
 
