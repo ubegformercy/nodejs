@@ -329,13 +329,17 @@ client.once("ready", async () => {
       : Routes.applicationCommands(CLIENT_ID);
 
     const routeType = GUILD_ID ? `guild (${GUILD_ID})` : "global (all servers)";
-    console.log(`Registering commands as: ${routeType}`);
+    console.log(`🔄 Registering ${commands.length} commands as: ${routeType}`);
+    
+    if (!GUILD_ID) {
+      console.log("ℹ️  Global commands registered. This may take 15-60 minutes to sync across Discord.");
+    }
 
     const result = await rest.put(commandRoute, { body: commands });
 
-    console.log("Slash commands registered. Discord now has:", result.map((c) => c.name).join(", "));
+    console.log("✅ Slash commands registered. Discord now has:", result.map((c) => c.name).join(", "));
   } catch (err) {
-    console.error("Failed to register slash commands:", err);
+    console.error("❌ Failed to register slash commands:", err);
   }
 });
 
