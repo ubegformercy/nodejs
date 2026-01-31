@@ -131,6 +131,11 @@ async function addMinutesForRole(userId, roleId, minutes) {
     const base = timerExpiry > now ? timerExpiry : now;
     const expiresAt = base + minutes * 60 * 1000;
 
+    console.log(`[addMinutesForRole DEBUG] userId=${userId}, roleId=${roleId}, minutes=${minutes}`);
+    console.log(`[addMinutesForRole DEBUG] timer.expires_at=${timer?.expires_at} (type: ${typeof timer?.expires_at}), timerExpiry=${timerExpiry}`);
+    console.log(`[addMinutesForRole DEBUG] now=${now}, base=${base}`);
+    console.log(`[addMinutesForRole DEBUG] calculated expiresAt=${expiresAt}`);
+
     const result = await pool.query(
       `INSERT INTO role_timers (user_id, role_id, expires_at, warnings_sent)
        VALUES ($1, $2, $3, '{}')
@@ -141,7 +146,10 @@ async function addMinutesForRole(userId, roleId, minutes) {
        RETURNING expires_at`,
       [userId, roleId, expiresAt]
     );
-    return Number(result.rows[0]?.expires_at || expiresAt);
+    const returnedValue = result.rows[0]?.expires_at;
+    const finalValue = Number(returnedValue || expiresAt);
+    console.log(`[addMinutesForRole DEBUG] returned from DB=${returnedValue} (type: ${typeof returnedValue}), final=${finalValue}`);
+    return finalValue;
   } catch (err) {
     console.error("addMinutesForRole error:", err);
     return null;
