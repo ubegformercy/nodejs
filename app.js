@@ -197,7 +197,7 @@ client.once("ready", async () => {
       .setName("resumetime")
       .setDescription("Resume a paused timed role (continues from where it was paused).")
       .addUserOption((o) => o.setName("user").setDescription("User to resume").setRequired(true))
-      .addRoleOption((o) => o.setName("role").setDescription("Role to resume (optional)").setRequired(false)),
+      .addRoleOption((o) => o.setName("role").setDescription("Role to resume").setRequired(true)),
 
     new SlashCommandBuilder()
       .setName("removetime")
@@ -352,7 +352,7 @@ if (interaction.commandName === "resumetime") {
   }
 
   const targetUser = interaction.options.getUser("user", true);
-  const roleOption = interaction.options.getRole("role"); // optional
+  const roleOption = interaction.options.getRole("role", true); // REQUIRED
 
   const guild = interaction.guild;
   const member = await guild.members.fetch(targetUser.id);
@@ -364,21 +364,14 @@ if (interaction.commandName === "resumetime") {
     return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
   }
 
-  // Pick role to resume
-  let roleIdToResume = null;
+  // Verify the specified role has a timer
+  const roleIdToResume = roleOption.id;
 
-  if (roleOption) {
-    roleIdToResume = roleOption.id;
-
-    if (!timedRoleIds.includes(roleIdToResume)) {
-      return interaction.reply({
-        content: `${targetUser} has no saved time for **${roleOption.name}**.`,
-        ephemeral: true,
-      });
-    }
-  } else {
-    const matching = timedRoleIds.find((rid) => member.roles.cache.has(rid));
-    roleIdToResume = matching || timedRoleIds[0];
+  if (!timedRoleIds.includes(roleIdToResume)) {
+    return interaction.reply({
+      content: `${targetUser} has no saved time for **${roleOption.name}**.`,
+      ephemeral: true,
+    });
   }
 
   const roleObj = guild.roles.cache.get(roleIdToResume);
