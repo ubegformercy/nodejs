@@ -33,6 +33,24 @@ async function initDatabase() {
       );
     `);
     console.log("✓ Database schema initialized");
+
+    // Create performance indexes for scale
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_role_timers_expires_at ON role_timers(expires_at)',
+      'CREATE INDEX IF NOT EXISTS idx_role_timers_user_id ON role_timers(user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_role_timers_paused_expires ON role_timers(paused, expires_at)',
+    ];
+
+    for (const indexQuery of indexes) {
+      try {
+        await client.query(indexQuery);
+      } catch (err) {
+        if (!err.message.includes("already exists")) {
+          console.warn("Index creation info:", err.message);
+        }
+      }
+    }
+    console.log("✓ Indexes created/verified");
   } catch (err) {
     console.error("Failed to initialize database:", err);
   } finally {
@@ -98,7 +116,7 @@ async function setMinutesForRole(userId, roleId, minutes, warnChannelId = null) 
        RETURNING expires_at`,
       [userId, roleId, expiresAt, warnChannelId, JSON.stringify({})]
     );
-    return result.rows[0]?.expires_at || expiresAt;
+    return Number(result.rows[0]?.expires_at || expiresAt);
   } catch (err) {
     console.error("setMinutesForRole error:", err);
     return null;
@@ -109,7 +127,8 @@ async function addMinutesForRole(userId, roleId, minutes) {
   try {
     const timer = await getTimerForRole(userId, roleId);
     const now = Date.now();
-    const base = timer && timer.expires_at > now ? timer.expires_at : now;
+    const timerExpiry = timer ? Number(timer.expires_at) : 0;
+    const base = timerExpiry > now ? timerExpiry : now;
     const expiresAt = base + minutes * 60 * 1000;
 
     const result = await pool.query(
@@ -122,7 +141,7 @@ async function addMinutesForRole(userId, roleId, minutes) {
        RETURNING expires_at`,
       [userId, roleId, expiresAt]
     );
-    return result.rows[0]?.expires_at || expiresAt;
+    return Number(result.rows[0]?.expires_at || expiresAt);
   } catch (err) {
     console.error("addMinutesForRole error:", err);
     return null;
@@ -135,7 +154,7 @@ async function removeMinutesForRole(userId, roleId, minutes) {
     if (!timer) return null;
 
     const now = Date.now();
-    const newExpiry = timer.expires_at - minutes * 60 * 1000;
+    const newExpiry = Number(timer.expires_at) - minutes * 60 * 1000;
 
     if (newExpiry <= now) {
       // Delete the timer
@@ -153,7 +172,7 @@ async function removeMinutesForRole(userId, roleId, minutes) {
        RETURNING expires_at`,
       [userId, roleId, newExpiry]
     );
-    return result.rows[0]?.expires_at || newExpiry;
+    return Number(result.rows[0]?.expires_at || newExpiry);
   } catch (err) {
     console.error("removeMinutesForRole error:", err);
     return null;
@@ -211,7 +230,7 @@ async function resumeTimer(userId, roleId) {
        RETURNING expires_at`,
       [userId, roleId, newExpiresAt]
     );
-    return result.rows[0]?.expires_at || newExpiresAt;
+    return Number(result.rows[0]?.expires_at || newExpiresAt);
   } catch (err) {
     console.error("resumeTimer error:", err);
     return null;
