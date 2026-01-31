@@ -881,9 +881,9 @@ if (interaction.commandName === "removetime") {
         }
         
         // Calculate remaining time
-        let remainingMs = timer.expires_at - Date.now();
+        let remainingMs = Number(timer.expires_at) - Date.now();
         if (timer.paused && timer.paused_remaining_ms) {
-          remainingMs = timer.paused_remaining_ms;
+          remainingMs = Number(timer.paused_remaining_ms);
         }
         
         if (remainingMs <= 0) {
@@ -910,9 +910,9 @@ if (interaction.commandName === "removetime") {
         return interaction.reply({ content: `${targetUser} has 0 time left.`, ephemeral: true });
       }
 
-      let remainingMs = timer.expires_at - Date.now();
+      let remainingMs = Number(timer.expires_at) - Date.now();
       if (timer.paused && timer.paused_remaining_ms) {
-        remainingMs = timer.paused_remaining_ms;
+        remainingMs = Number(timer.paused_remaining_ms);
       }
 
       if (remainingMs <= 0) {
