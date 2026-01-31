@@ -37,6 +37,22 @@ async function initDatabase() {
         UNIQUE(user_id, role_id)
       );
     `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS autopurge_settings (
+        id SERIAL PRIMARY KEY,
+        guild_id VARCHAR(255) NOT NULL,
+        channel_id VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        lines INTEGER NOT NULL,
+        interval_seconds BIGINT NOT NULL,
+        enabled BOOLEAN DEFAULT true,
+        last_purge_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, channel_id)
+      );
+    `);
     console.log("✓ Database schema initialized");
 
     // Create performance indexes for scale
@@ -44,6 +60,8 @@ async function initDatabase() {
       'CREATE INDEX IF NOT EXISTS idx_role_timers_expires_at ON role_timers(expires_at)',
       'CREATE INDEX IF NOT EXISTS idx_role_timers_user_id ON role_timers(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_role_timers_paused_expires ON role_timers(paused, expires_at)',
+      'CREATE INDEX IF NOT EXISTS idx_autopurge_settings_guild_channel ON autopurge_settings(guild_id, channel_id)',
+      'CREATE INDEX IF NOT EXISTS idx_autopurge_settings_enabled ON autopurge_settings(enabled)',
     ];
 
     for (const indexQuery of indexes) {
@@ -319,6 +337,92 @@ async function getFirstTimedRoleForUser(userId) {
   }
 }
 
+// ===== AUTOPURGE OPERATIONS =====
+
+async function setAutopurgeSetting(guildId, channelId, type, lines, intervalSeconds) {
+  try {
+    const result = await pool.query(
+      `INSERT INTO autopurge_settings (guild_id, channel_id, type, lines, interval_seconds, enabled, last_purge_at)
+       VALUES ($1, $2, $3, $4, $5, true, NULL)
+       ON CONFLICT (guild_id, channel_id) DO UPDATE SET
+         type = $3,
+         lines = $4,
+         interval_seconds = $5,
+         enabled = true,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [guildId, channelId, type, lines, intervalSeconds]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error("setAutopurgeSetting error:", err);
+    return null;
+  }
+}
+
+async function getAutopurgeSetting(guildId, channelId) {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM autopurge_settings WHERE guild_id = $1 AND channel_id = $2",
+      [guildId, channelId]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error("getAutopurgeSetting error:", err);
+    return null;
+  }
+}
+
+async function getAllAutopurgeSettings(guildId) {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM autopurge_settings WHERE guild_id = $1 AND enabled = true ORDER BY channel_id ASC",
+      [guildId]
+    );
+    return result.rows;
+  } catch (err) {
+    console.error("getAllAutopurgeSettings error:", err);
+    return [];
+  }
+}
+
+async function disableAutopurgeSetting(guildId, channelId) {
+  try {
+    const result = await pool.query(
+      "UPDATE autopurge_settings SET enabled = false, updated_at = CURRENT_TIMESTAMP WHERE guild_id = $1 AND channel_id = $2 RETURNING *",
+      [guildId, channelId]
+    );
+    return result.rows.length > 0;
+  } catch (err) {
+    console.error("disableAutopurgeSetting error:", err);
+    return false;
+  }
+}
+
+async function deleteAutopurgeSetting(guildId, channelId) {
+  try {
+    const result = await pool.query(
+      "DELETE FROM autopurge_settings WHERE guild_id = $1 AND channel_id = $2 RETURNING *",
+      [guildId, channelId]
+    );
+    return result.rows.length > 0;
+  } catch (err) {
+    console.error("deleteAutopurgeSetting error:", err);
+    return false;
+  }
+}
+
+async function updateAutopurgeLastPurge(guildId, channelId) {
+  try {
+    await pool.query(
+      "UPDATE autopurge_settings SET last_purge_at = CURRENT_TIMESTAMP WHERE guild_id = $1 AND channel_id = $2",
+      [guildId, channelId]
+    );
+  } catch (err) {
+    console.error("updateAutopurgeLastPurge error:", err);
+  }
+}
+
 async function closePool() {
   await pool.end();
   console.log("Database connection pool closed");
@@ -339,5 +443,11 @@ module.exports = {
   markWarningAsSent,
   hasWarningBeenSent,
   getFirstTimedRoleForUser,
+  setAutopurgeSetting,
+  getAutopurgeSetting,
+  getAllAutopurgeSettings,
+  disableAutopurgeSetting,
+  deleteAutopurgeSetting,
+  updateAutopurgeLastPurge,
   closePool,
 };

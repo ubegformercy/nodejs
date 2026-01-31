@@ -224,6 +224,54 @@ client.once("ready", async () => {
       .setName("rolestatus")
       .setDescription("Show all users with a specific role and their remaining times.")
       .addRoleOption((o) => o.setName("role").setDescription("Role to check").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("autopurge")
+      .setDescription("Automatically purge bot or user messages from a channel at set intervals.")
+      .addSubcommand((s) =>
+        s
+          .setName("set")
+          .setDescription("Set up auto-purge for a channel")
+          .addChannelOption((o) => o.setName("channel").setDescription("Channel to auto-purge").setRequired(true))
+          .addStringOption((o) =>
+            o
+              .setName("type")
+              .setDescription("Message type to purge")
+              .setRequired(true)
+              .addChoices(
+                { name: "Bot messages only", value: "bot" },
+                { name: "User messages only", value: "user" },
+                { name: "Both bot and user messages", value: "both" }
+              )
+          )
+          .addIntegerOption((o) =>
+            o
+              .setName("lines")
+              .setDescription("Number of messages to purge per interval (1-100)")
+              .setRequired(true)
+              .setMinValue(1)
+              .setMaxValue(100)
+          )
+          .addIntegerOption((o) =>
+            o
+              .setName("interval")
+              .setDescription("Minutes between purges (15-10080)")
+              .setRequired(true)
+              .setMinValue(15)
+              .setMaxValue(10080)
+          )
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("disable")
+          .setDescription("Disable auto-purge for a channel")
+          .addChannelOption((o) => o.setName("channel").setDescription("Channel to disable").setRequired(true))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("status")
+          .setDescription("Show all auto-purge settings in this server")
+      ),
   ].map((c) => c.toJSON());
 
   console.log("Registering command names:", commands.map((c) => c.name).join(", "));
@@ -1133,6 +1181,133 @@ if (interaction.commandName === "removetime") {
       return interaction.editReply({ embeds: [embed] });
     }
 
+    // ---------- /autopurge ----------
+    if (interaction.commandName === "autopurge") {
+      if (!interaction.guild) {
+        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+      }
+
+      const subcommand = interaction.options.getSubcommand();
+      const guild = interaction.guild;
+
+      if (subcommand === "set") {
+        const channel = interaction.options.getChannel("channel", true);
+        const type = interaction.options.getString("type", true);
+        const lines = interaction.options.getInteger("lines", true);
+        const interval = interaction.options.getInteger("interval", true);
+
+        // Validate channel is text-based
+        if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
+          return interaction.reply({ content: "Channel must be a text or announcement channel.", ephemeral: true });
+        }
+
+        // Check bot permissions in the target channel
+        const me = await guild.members.fetchMe();
+        const perms = channel.permissionsFor(me);
+
+        if (!perms?.has(PermissionFlagsBits.ManageMessages)) {
+          return interaction.reply({
+            content: `I don't have **Manage Messages** permission in ${channel}. I need this to delete messages.`,
+            ephemeral: true,
+          });
+        }
+
+        // Save to database
+        const intervalSeconds = interval * 60;
+        const setting = await db.setAutopurgeSetting(guild.id, channel.id, type, lines, intervalSeconds);
+
+        if (!setting) {
+          return interaction.reply({ content: "Failed to save autopurge setting. Try again later.", ephemeral: true });
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2ECC71)
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle("✅ Auto-Purge Enabled")
+          .setTimestamp(new Date())
+          .addFields(
+            { name: "Channel", value: `${channel}`, inline: true },
+            { name: "Message Type", value: `${type === "bot" ? "🤖 Bot Only" : type === "user" ? "👤 User Only" : "🔀 Both"}`, inline: true },
+            { name: "Lines per Purge", value: `${lines}`, inline: true },
+            { name: "Interval", value: `${interval} minute(s)`, inline: true },
+            { name: "Next Purge", value: `In ~${interval} minute(s)`, inline: true }
+          )
+          .setFooter({ text: "BoostMon • Auto-Purge Active" });
+
+        return interaction.reply({ embeds: [embed] });
+      }
+
+      if (subcommand === "disable") {
+        const channel = interaction.options.getChannel("channel", true);
+
+        const setting = await db.getAutopurgeSetting(guild.id, channel.id);
+        if (!setting) {
+          return interaction.reply({
+            content: `No auto-purge setting found for ${channel}.`,
+            ephemeral: true,
+          });
+        }
+
+        const disabled = await db.disableAutopurgeSetting(guild.id, channel.id);
+        if (!disabled) {
+          return interaction.reply({ content: "Failed to disable auto-purge. Try again later.", ephemeral: true });
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0xE74C3C)
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle("❌ Auto-Purge Disabled")
+          .setTimestamp(new Date())
+          .addFields({ name: "Channel", value: `${channel}`, inline: true })
+          .setFooter({ text: "BoostMon • Auto-Purge Disabled" });
+
+        return interaction.reply({ embeds: [embed] });
+      }
+
+      if (subcommand === "status") {
+        const settings = await db.getAllAutopurgeSettings(guild.id).catch(() => []);
+
+        if (settings.length === 0) {
+          const embed = new EmbedBuilder()
+            .setColor(0x95A5A6)
+            .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+            .setTitle("Auto-Purge Status")
+            .setTimestamp(new Date())
+            .addFields({ name: "Settings", value: "No active auto-purge settings in this server", inline: false })
+            .setFooter({ text: "BoostMon" });
+          return interaction.reply({ embeds: [embed] });
+        }
+
+        const fields = [];
+        for (const setting of settings) {
+          const channel = guild.channels.cache.get(setting.channel_id);
+          const channelName = channel ? channel.toString() : `<#${setting.channel_id}>`;
+          const typeEmoji = setting.type === "bot" ? "🤖" : setting.type === "user" ? "👤" : "🔀";
+          const intervalMins = Math.floor(setting.interval_seconds / 60);
+          const lastPurge = setting.last_purge_at
+            ? `<t:${Math.floor(new Date(setting.last_purge_at).getTime() / 1000)}:R>`
+            : "Never";
+
+          fields.push({
+            name: `${typeEmoji} ${channelName}`,
+            value: `**Lines:** ${setting.lines} | **Interval:** ${intervalMins}m | **Last Purge:** ${lastPurge}`,
+            inline: false,
+          });
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x3498DB)
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle("Auto-Purge Status")
+          .setTimestamp(new Date())
+          .addFields(...fields)
+          .addFields({ name: "━━━━━━━━━━━━━━━", value: `Total: ${settings.length}`, inline: false })
+          .setFooter({ text: "BoostMon • Active Settings" });
+
+        return interaction.reply({ embeds: [embed] });
+      }
+    }
+
   } catch (err) {
     console.error("Command error:", err);
 
@@ -1263,6 +1438,84 @@ async function sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId) {
 }
 
 
+async function executeAutopurges(guild, now) {
+  try {
+    const settings = await db.getAllAutopurgeSettings(guild.id).catch(() => []);
+
+    for (const setting of settings) {
+      const channel = guild.channels.cache.get(setting.channel_id);
+      if (!channel) continue;
+
+      // Check if it's time to purge
+      const lastPurgeTime = setting.last_purge_at ? new Date(setting.last_purge_at).getTime() : 0;
+      const timeSinceLastPurge = now - lastPurgeTime;
+      const intervalMs = setting.interval_seconds * 1000;
+
+      if (timeSinceLastPurge < intervalMs) {
+        continue; // Not time yet
+      }
+
+      // Fetch messages to purge
+      try {
+        const messages = await channel
+          .messages.fetch({ limit: Math.min(setting.lines + 5, 100) })
+          .catch(() => null);
+
+        if (!messages || messages.size === 0) {
+          await db.updateAutopurgeLastPurge(guild.id, setting.channel_id);
+          continue;
+        }
+
+        let messagesToDelete = [];
+
+        for (const msg of messages.values()) {
+          if (messagesToDelete.length >= setting.lines) break;
+
+          // Filter by message type
+          const isBot = msg.author.bot;
+          const isUser = !msg.author.bot;
+
+          let shouldDelete = false;
+          if (setting.type === "bot" && isBot) shouldDelete = true;
+          if (setting.type === "user" && isUser) shouldDelete = true;
+          if (setting.type === "both") shouldDelete = true;
+
+          // Don't delete pinned messages
+          if (msg.pinned) shouldDelete = false;
+
+          // Don't delete if older than 14 days (Discord API limitation)
+          const messageAge = now - msg.createdTimestamp;
+          if (messageAge > 14 * 24 * 60 * 60 * 1000) shouldDelete = false;
+
+          if (shouldDelete) {
+            messagesToDelete.push(msg);
+          }
+        }
+
+        // Delete messages using bulkDelete (more efficient)
+        if (messagesToDelete.length > 0) {
+          await channel.bulkDelete(messagesToDelete, true).catch((err) => {
+            console.warn(
+              `[AUTOPURGE] Failed to bulk delete ${messagesToDelete.length} messages from ${channel.name}: ${err.message}`
+            );
+          });
+
+          console.log(
+            `[AUTOPURGE] Purged ${messagesToDelete.length} ${setting.type} message(s) from ${channel.name}`
+          );
+        }
+
+        // Update last purge time
+        await db.updateAutopurgeLastPurge(guild.id, setting.channel_id);
+      } catch (err) {
+        console.error(`[AUTOPURGE] Error processing channel ${setting.channel_id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error("executeAutopurges error:", err);
+  }
+}
+
 async function cleanupAndWarn() {
   try {
     if (!GUILD_ID) return;
@@ -1322,6 +1575,9 @@ async function cleanupAndWarn() {
         }
       }
     }
+
+    // Execute autopurge tasks
+    await executeAutopurges(guild, now);
   } catch (e) {
     console.error("cleanupAndWarn error:", e);
   }
