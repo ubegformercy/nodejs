@@ -9,13 +9,16 @@ const db = require('../db');
 function requireAuth(req, res, next) {
   try {
     const authCookie = req.cookies.boostmon_auth;
+    console.log(`[Auth] Checking auth cookie for ${req.path}:`, authCookie ? 'present' : 'missing');
     if (!authCookie) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
     req.user = JSON.parse(authCookie);
+    console.log(`[Auth] User authenticated: ${req.user.userId}`);
     next();
   } catch (err) {
+    console.error(`[Auth] Error parsing session:`, err.message);
     return res.status(401).json({ error: 'Invalid session' });
   }
 }
