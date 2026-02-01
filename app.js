@@ -473,8 +473,11 @@ client.on("interactionCreate", async (interaction) => {
 try { 
 // ---------- /pausetime ----------
 if (interaction.commandName === "pausetime") {
-  if (!interaction.guild) {
-    return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    // Defer immediately to prevent interaction timeout
+    await interaction.deferReply().catch(() => null);
+
+    if (!interaction.guild) {
+    return interaction.editReply({ content: "This command can only be used in a server." });
   }
 
   const targetUser = interaction.options.getUser("user", true);
@@ -487,7 +490,7 @@ if (interaction.commandName === "pausetime") {
   const timedRoleIds = timers.map(t => t.role_id);
 
   if (timedRoleIds.length === 0) {
-    return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
+    return interaction.editReply({ content: `${targetUser} has no active timed roles.` });
   }
 
   let roleIdToPause = null;
@@ -495,9 +498,8 @@ if (interaction.commandName === "pausetime") {
   if (roleOption) {
     roleIdToPause = roleOption.id;
     if (!timedRoleIds.includes(roleIdToPause)) {
-      return interaction.reply({
+      return interaction.editReply({
         content: `${targetUser} has no saved time for **${roleOption.name}**.`,
-        ephemeral: true,
       });
     }
   } else {
@@ -509,23 +511,21 @@ if (interaction.commandName === "pausetime") {
   const roleName = roleObj?.name || "that role";
 
   if (!roleObj) {
-    return interaction.reply({
+    return interaction.editReply({
       content: `That role no longer exists in this server, but a timer is stored for it. Use /cleartime to remove the stored timer.`,
-      ephemeral: true,
     });
   }
 
   const permCheck = await canManageRole(guild, roleObj);
   if (!permCheck.ok) {
-    return interaction.reply({ content: permCheck.reason, ephemeral: true });
+    return interaction.editReply({ content: permCheck.reason });
   }
 
   const entry = await db.getTimerForRole(targetUser.id, roleIdToPause);
 
   if (entry?.paused) {
-    return interaction.reply({
+    return interaction.editReply({
       content: `${targetUser}'s timer for **${roleName}** is already paused.`,
-      ephemeral: true,
     });
   }
 
@@ -545,14 +545,17 @@ if (interaction.commandName === "pausetime") {
     )
     .setFooter({ text: "BoostMon • Paused Timer" });
 
-  return interaction.reply({ embeds: [embed] });
+  return interaction.editReply({ embeds: [embed] });
 }
 
 
 // ---------- /resumetime ----------
 if (interaction.commandName === "resumetime") {
-  if (!interaction.guild) {
-    return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    // Defer immediately to prevent interaction timeout
+    await interaction.deferReply().catch(() => null);
+
+    if (!interaction.guild) {
+    return interaction.editReply({ content: "This command can only be used in a server." });
   }
 
   const targetUser = interaction.options.getUser("user", true);
@@ -565,16 +568,15 @@ if (interaction.commandName === "resumetime") {
   const timedRoleIds = timers.map(t => t.role_id);
 
   if (timedRoleIds.length === 0) {
-    return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
+    return interaction.editReply({ content: `${targetUser} has no active timed roles.` });
   }
 
   // Verify the specified role has a timer
   const roleIdToResume = roleOption.id;
 
   if (!timedRoleIds.includes(roleIdToResume)) {
-    return interaction.reply({
+    return interaction.editReply({
       content: `${targetUser} has no saved time for **${roleOption.name}**.`,
-      ephemeral: true,
     });
   }
 
@@ -584,23 +586,21 @@ if (interaction.commandName === "resumetime") {
   const entry = await db.getTimerForRole(targetUser.id, roleIdToResume);
 
   if (!entry?.paused) {
-    return interaction.reply({
+    return interaction.editReply({
       content: `${targetUser}'s timer for **${roleName}** is not paused.`,
-      ephemeral: true,
     });
   }
 
   if (!roleObj) {
     await db.clearRoleTimer(targetUser.id, roleIdToResume);
-    return interaction.reply({
+    return interaction.editReply({
       content: `That role no longer exists in this server, so I cleared the saved timer for ${targetUser}.`,
-      ephemeral: false,
     });
   }
 
   const permCheck = await canManageRole(guild, roleObj);
   if (!permCheck.ok) {
-    return interaction.reply({ content: permCheck.reason, ephemeral: true });
+    return interaction.editReply({ content: permCheck.reason });
   }
 
   const remainingMs = Math.max(0, Number(entry.paused_remaining_ms || 0));
@@ -610,9 +610,8 @@ if (interaction.commandName === "resumetime") {
     if (member.roles.cache.has(roleIdToResume)) {
       await member.roles.remove(roleIdToResume).catch(() => null);
     }
-    return interaction.reply({
+    return interaction.editReply({
       content: `No time remained to resume for ${targetUser} on **${roleName}**. Timer cleared and role removed.`,
-      ephemeral: false,
     });
   }
 
@@ -643,7 +642,7 @@ const embed = new EmbedBuilder()
   )
   .setFooter({ text: "BoostMon • Active Timer" });
 
-return interaction.reply({ embeds: [embed] });
+return interaction.editReply({ embeds: [embed] });
 
 }
 
@@ -651,8 +650,11 @@ return interaction.reply({ embeds: [embed] });
  
     // ---------- /settime ----------
     if (interaction.commandName === "settime") {
+      // Defer immediately to prevent interaction timeout
+      await interaction.deferReply().catch(() => null);
+
       if (!interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+        return interaction.editReply({ content: "This command can only be used in a server." });
       }
 
       const targetUser = interaction.options.getUser("user", true);
@@ -664,12 +666,12 @@ return interaction.reply({ embeds: [embed] });
 
       const role = guild.roles.cache.get(targetRole.id);
       if (!role) {
-        return interaction.reply({ content: "I couldn't find that role in this server.", ephemeral: true });
+        return interaction.editReply({ content: "I couldn't find that role in this server." });
       }
 
       const permCheck = await canManageRole(guild, role);
       if (!permCheck.ok) {
-        return interaction.reply({ content: permCheck.reason, ephemeral: true });
+        return interaction.editReply({ content: permCheck.reason });
       }
 
       // Validate channel if provided (and whether bot can send there)
@@ -734,13 +736,16 @@ return interaction.reply({ embeds: [embed] });
       )
       .setFooter({ text: "BoostMon • Active Timer", iconURL: BOOSTMON_ICON_URL });
     
-    return interaction.reply({ embeds: [embed] });
+    return interaction.editReply({ embeds: [embed] });
     }
 
     // ---------- /addtime ----------
     if (interaction.commandName === "addtime") {
+      // Defer immediately to prevent interaction timeout
+      await interaction.deferReply().catch(() => null);
+
       if (!interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+        return interaction.editReply({ content: "This command can only be used in a server." });
       }
 
       const targetUser = interaction.options.getUser("user", true);
@@ -761,26 +766,24 @@ return interaction.reply({ embeds: [embed] });
         if (timedRoleIds.length === 1) {
           roleIdToEdit = timedRoleIds[0];
         } else if (timedRoleIds.length === 0) {
-          return interaction.reply({
+          return interaction.editReply({
             content: `${targetUser} has no active timed roles. Use /settime with a role first.`,
-            ephemeral: true,
           });
         } else {
-          return interaction.reply({
+          return interaction.editReply({
             content: `${targetUser} has multiple timed roles. Please specify the role.`,
-            ephemeral: true,
           });
         }
       }
 
       const role = guild.roles.cache.get(roleIdToEdit);
       if (!role) {
-        return interaction.reply({ content: "That role no longer exists in this server.", ephemeral: true });
+        return interaction.editReply({ content: "That role no longer exists in this server." });
       }
 
       const permCheck = await canManageRole(guild, role);
       if (!permCheck.ok) {
-        return interaction.reply({ content: permCheck.reason, ephemeral: true });
+        return interaction.editReply({ content: permCheck.reason });
       }
 
       const expiresAt = await addMinutesForRole(targetUser.id, role.id, minutes, guild.id);
@@ -811,15 +814,18 @@ const embed = new EmbedBuilder()
   )
   .setFooter({ text: "BoostMon • Active Timer" });
 
-return interaction.reply({
+return interaction.editReply({
   embeds: [embed],
 });
 }
 
 // ---------- /removetime ----------
 if (interaction.commandName === "removetime") {
-  if (!interaction.guild) {
-    return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    // Defer immediately to prevent interaction timeout
+    await interaction.deferReply().catch(() => null);
+
+    if (!interaction.guild) {
+    return interaction.editReply({ content: "This command can only be used in a server." });
   }
 
   const targetUser = interaction.options.getUser("user", true);
@@ -841,7 +847,7 @@ if (interaction.commandName === "removetime") {
       .addFields({ name: "Target User", value: `${targetUser}`, inline: true })
       .setFooter({ text: "BoostMon" });
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.editReply({ embeds: [embed] });
   }
 
   // Decide which role to edit
@@ -862,7 +868,7 @@ if (interaction.commandName === "removetime") {
         )
         .setFooter({ text: "BoostMon" });
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed] });
     }
   } else {
     const matching = timedRoleIds.filter((rid) => member.roles.cache.has(rid));
@@ -891,7 +897,7 @@ if (interaction.commandName === "removetime") {
           )
           .setFooter({ text: "BoostMon • Select a Role" });
 
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return interaction.editReply({ embeds: [embed] });
       }
     } else {
       const possible = matching
@@ -912,7 +918,7 @@ if (interaction.commandName === "removetime") {
         )
         .setFooter({ text: "BoostMon • Select a Role" });
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed] });
     }
   }
 
@@ -930,12 +936,12 @@ if (interaction.commandName === "removetime") {
       )
       .setFooter({ text: "BoostMon" });
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.editReply({ embeds: [embed] });
   }
 
   const permCheck = await canManageRole(guild, roleObj);
   if (!permCheck.ok) {
-    return interaction.reply({ content: permCheck.reason, ephemeral: true });
+    return interaction.editReply({ content: permCheck.reason });
   }
 
   const result = await removeMinutesForRole(targetUser.id, roleIdToEdit, minutes);
@@ -952,7 +958,7 @@ if (interaction.commandName === "removetime") {
       )
       .setFooter({ text: "BoostMon" });
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    return interaction.editReply({ embeds: [embed] });
   }
 
   // result is either 0 (expired) or an expiresAt timestamp (ms)
@@ -976,7 +982,7 @@ if (interaction.commandName === "removetime") {
       )
       .setFooter({ text: "BoostMon • Timer Ended" });
 
-    return interaction.reply({ embeds: [embed], ephemeral: false });
+    return interaction.editReply({ embeds: [embed] });
   }
 
   const leftMs = Math.max(0, result - Date.now());
@@ -1001,14 +1007,17 @@ if (interaction.commandName === "removetime") {
     )
     .setFooter({ text: "BoostMon • Active Timer" });
 
-  return interaction.reply({ embeds: [embed], ephemeral: false });
+  return interaction.editReply({ embeds: [embed] });
 }
 
 
     // ---------- /cleartime ----------
     if (interaction.commandName === "cleartime") {
+      // Defer immediately to prevent interaction timeout
+      await interaction.deferReply().catch(() => null);
+
       if (!interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+        return interaction.editReply({ content: "This command can only be used in a server." });
       }
 
       const targetUser = interaction.options.getUser("user", true);
@@ -1021,7 +1030,7 @@ if (interaction.commandName === "removetime") {
       const timedRoleIds = timers.map(t => t.role_id);
 
       if (timedRoleIds.length === 0) {
-        return interaction.reply({ content: `${targetUser} has no active timed roles.`, ephemeral: true });
+        return interaction.editReply({ content: `${targetUser} has no active timed roles.` });
       }
 
       // Pick role to clear
@@ -1030,9 +1039,8 @@ if (interaction.commandName === "removetime") {
       if (roleOption) {
         roleIdToClear = roleOption.id;
         if (!timedRoleIds.includes(roleIdToClear)) {
-          return interaction.reply({
+          return interaction.editReply({
             content: `${targetUser} has no saved time for **${roleOption.name}**.`,
-            ephemeral: true,
           });
         }
       } else {
@@ -1045,15 +1053,14 @@ if (interaction.commandName === "removetime") {
       if (!roleObj) {
         // Role deleted, but timer exists. Clear timer anyway.
         await db.clearRoleTimer(targetUser.id, roleIdToClear);
-        return interaction.reply({
+        return interaction.editReply({
           content: `Cleared saved time for ${targetUser}. (Role no longer exists in this server.)`,
-          ephemeral: false,
         });
       }
 
       const permCheck = await canManageRole(guild, roleObj);
       if (!permCheck.ok) {
-        return interaction.reply({ content: permCheck.reason, ephemeral: true });
+        return interaction.editReply({ content: permCheck.reason });
       }
 
       await db.clearRoleTimer(targetUser.id, roleIdToClear);
@@ -1062,14 +1069,16 @@ if (interaction.commandName === "removetime") {
         await member.roles.remove(roleIdToClear);
       }
 
-      return interaction.reply({
+      return interaction.editReply({
         content: `Cleared saved time for ${targetUser} on **${roleObj.name}** and removed the role.`,
-        ephemeral: false,
       });
     }
 
     // ---------- /showtime ----------
     if (interaction.commandName === "showtime") {
+      // Defer immediately to prevent interaction timeout
+      await interaction.deferReply().catch(() => null);
+
       const targetUser = interaction.options.getUser("user") ?? interaction.user;
       const role = interaction.options.getRole("role"); // optional
 
@@ -1087,7 +1096,7 @@ if (interaction.commandName === "removetime") {
               { name: "Time Remaining", value: "0 minutes", inline: true }
             )
             .setFooter({ text: "BoostMon • No Timer" });
-          return interaction.reply({ embeds: [embed] });
+          return interaction.editReply({ embeds: [embed] });
         }
         
         // Calculate remaining time
@@ -1109,7 +1118,7 @@ if (interaction.commandName === "removetime") {
               { name: "Time Remaining", value: "0 minutes (expired)", inline: true }
             )
             .setFooter({ text: "BoostMon • Expired" });
-          return interaction.reply({ embeds: [embed] });
+          return interaction.editReply({ embeds: [embed] });
         }
 
         const expiresAt = Date.now() + remainingMs;
@@ -1134,7 +1143,7 @@ if (interaction.commandName === "removetime") {
           )
           .setFooter({ text: statusFooter });
         
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       const currentRoleId = await getFirstTimedRoleId(targetUser.id);
@@ -1149,7 +1158,7 @@ if (interaction.commandName === "removetime") {
             { name: "Status", value: "No timed roles found", inline: true }
           )
           .setFooter({ text: "BoostMon" });
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       const timer = await db.getTimerForRole(targetUser.id, currentRoleId);
@@ -1166,7 +1175,7 @@ if (interaction.commandName === "removetime") {
             { name: "Status", value: "No timed role found", inline: true }
           )
           .setFooter({ text: "BoostMon" });
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       let remainingMs = Number(timer.expires_at) - Date.now();
@@ -1187,7 +1196,7 @@ if (interaction.commandName === "removetime") {
             { name: "Time Remaining", value: "0 minutes (expired)", inline: true }
           )
           .setFooter({ text: "BoostMon • Expired" });
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       const expiresAt = Date.now() + remainingMs;
@@ -1212,13 +1221,16 @@ if (interaction.commandName === "removetime") {
         )
         .setFooter({ text: statusFooter });
       
-      return interaction.reply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed] });
     }
 
     // ---------- /rolestatus ----------
     if (interaction.commandName === "rolestatus") {
+      // Defer immediately to prevent interaction timeout
+      await interaction.deferReply().catch(() => null);
+
       if (!interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+        return interaction.editReply({ content: "This command can only be used in a server." });
       }
 
       const subcommand = interaction.options.getSubcommand();
@@ -1227,8 +1239,6 @@ if (interaction.commandName === "removetime") {
 
       // ===== ROLESTATUS VIEW =====
       if (subcommand === "view") {
-        // Defer because this can take a while
-        await interaction.deferReply().catch(() => null);
 
         const roleOption = interaction.options.getRole("role", true);
 
@@ -1349,9 +1359,8 @@ if (interaction.commandName === "removetime") {
         if (scheduleSubcommand === "set") {
           // Check permissions
           if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
-            return interaction.reply({
+            return interaction.editReply({
               content: "You need **Manage Messages** permission to set up automated reports.",
-              ephemeral: true,
             });
           }
 
@@ -1361,9 +1370,8 @@ if (interaction.commandName === "removetime") {
 
           // Validate channel is text-based
           if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
-            return interaction.reply({
+            return interaction.editReply({
               content: "Channel must be a text or announcement channel.",
-              ephemeral: true,
             });
           }
 
@@ -1372,9 +1380,8 @@ if (interaction.commandName === "removetime") {
           const perms = channel.permissionsFor(me);
 
           if (!perms?.has(PermissionFlagsBits.SendMessages)) {
-            return interaction.reply({
+            return interaction.editReply({
               content: `I don't have permission to send messages in ${channel}.`,
-              ephemeral: true,
             });
           }
 
@@ -1382,9 +1389,8 @@ if (interaction.commandName === "removetime") {
           const schedule = await db.createRolestatusSchedule(guild.id, role.id, channel.id, interval);
           
           if (!schedule) {
-            return interaction.reply({
+            return interaction.editReply({
               content: "Failed to create schedule. Please try again.",
-              ephemeral: true,
             });
           }
 
@@ -1401,15 +1407,14 @@ if (interaction.commandName === "removetime") {
             )
             .setFooter({ text: "BoostMon • Scheduled Report Started" });
 
-          return interaction.reply({ embeds: [embed] });
+          return interaction.editReply({ embeds: [embed] });
         }
 
         if (scheduleSubcommand === "disable") {
           // Check permissions
           if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
-            return interaction.reply({
+            return interaction.editReply({
               content: "You need **Manage Messages** permission to disable automated reports.",
-              ephemeral: true,
             });
           }
 
@@ -1419,9 +1424,8 @@ if (interaction.commandName === "removetime") {
           const success = await db.disableRolestatusSchedule(guild.id, role.id);
 
           if (!success) {
-            return interaction.reply({
+            return interaction.editReply({
               content: `No active schedules found for ${role.name}.`,
-              ephemeral: true,
             });
           }
 
@@ -1436,16 +1440,15 @@ if (interaction.commandName === "removetime") {
             )
             .setFooter({ text: "BoostMon • Scheduled Report Stopped" });
 
-          return interaction.reply({ embeds: [embed] });
+          return interaction.editReply({ embeds: [embed] });
         }
 
         if (scheduleSubcommand === "list") {
           const schedules = await db.getAllRolestatusSchedules(guild.id);
 
           if (schedules.length === 0) {
-            return interaction.reply({
+            return interaction.editReply({
               content: "No active role status schedules in this server.",
-              ephemeral: true,
             });
           }
 
@@ -1475,15 +1478,18 @@ if (interaction.commandName === "removetime") {
             .addFields(...fields)
             .setFooter({ text: `BoostMon • ${schedules.length} schedule(s) active` });
 
-          return interaction.reply({ embeds: [embed] });
+          return interaction.editReply({ embeds: [embed] });
         }
       }
     }
 
     // ---------- /autopurge ----------
     if (interaction.commandName === "autopurge") {
+      // Defer immediately to prevent interaction timeout
+      await interaction.deferReply().catch(() => null);
+
       if (!interaction.guild) {
-        return interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+        return interaction.editReply({ content: "This command can only be used in a server." });
       }
 
       const subcommand = interaction.options.getSubcommand();
@@ -1497,7 +1503,7 @@ if (interaction.commandName === "removetime") {
 
         // Validate channel is text-based
         if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
-          return interaction.reply({ content: "Channel must be a text or announcement channel.", ephemeral: true });
+          return interaction.editReply({ content: "Channel must be a text or announcement channel." });
         }
 
         // Check bot permissions in the target channel
@@ -1505,9 +1511,8 @@ if (interaction.commandName === "removetime") {
         const perms = channel.permissionsFor(me);
 
         if (!perms?.has(PermissionFlagsBits.ManageMessages)) {
-          return interaction.reply({
+          return interaction.editReply({
             content: `I don't have **Manage Messages** permission in ${channel}. I need this to delete messages.`,
-            ephemeral: true,
           });
         }
 
@@ -1516,7 +1521,7 @@ if (interaction.commandName === "removetime") {
         const setting = await db.setAutopurgeSetting(guild.id, channel.id, type, lines, intervalSeconds);
 
         if (!setting) {
-          return interaction.reply({ content: "Failed to save autopurge setting. Try again later.", ephemeral: true });
+          return interaction.editReply({ content: "Failed to save autopurge setting. Try again later." });
         }
 
         const embed = new EmbedBuilder()
@@ -1533,7 +1538,7 @@ if (interaction.commandName === "removetime") {
           )
           .setFooter({ text: "BoostMon • Auto-Purge Active" });
 
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       if (subcommand === "disable") {
@@ -1541,15 +1546,14 @@ if (interaction.commandName === "removetime") {
 
         const setting = await db.getAutopurgeSetting(guild.id, channel.id);
         if (!setting) {
-          return interaction.reply({
+          return interaction.editReply({
             content: `No auto-purge setting found for ${channel}.`,
-            ephemeral: true,
           });
         }
 
         const disabled = await db.disableAutopurgeSetting(guild.id, channel.id);
         if (!disabled) {
-          return interaction.reply({ content: "Failed to disable auto-purge. Try again later.", ephemeral: true });
+          return interaction.editReply({ content: "Failed to disable auto-purge. Try again later." });
         }
 
         const embed = new EmbedBuilder()
@@ -1560,7 +1564,7 @@ if (interaction.commandName === "removetime") {
           .addFields({ name: "Channel", value: `${channel}`, inline: true })
           .setFooter({ text: "BoostMon • Auto-Purge Disabled" });
 
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
 
       if (subcommand === "status") {
@@ -1574,7 +1578,7 @@ if (interaction.commandName === "removetime") {
             .setTimestamp(new Date())
             .addFields({ name: "Settings", value: "No active auto-purge settings in this server", inline: false })
             .setFooter({ text: "BoostMon" });
-          return interaction.reply({ embeds: [embed] });
+          return interaction.editReply({ embeds: [embed] });
         }
 
         const fields = [];
@@ -1603,7 +1607,7 @@ if (interaction.commandName === "removetime") {
           .addFields({ name: "━━━━━━━━━━━━━━━", value: `Total: ${settings.length}`, inline: false })
           .setFooter({ text: "BoostMon • Active Settings" });
 
-        return interaction.reply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] });
       }
     }
 
