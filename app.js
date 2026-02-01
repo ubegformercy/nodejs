@@ -15,6 +15,7 @@ const {
   EmbedBuilder,  
 } = require("discord.js");
 const indexRouter = require("./routes/index");
+const dashboardRouter = require("./routes/dashboard");
 const db = require("./db");
 const BOOSTMON_ICON_URL = "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
 console.log("=== BoostMon app.js booted ===");
@@ -1536,6 +1537,7 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.resolve(__dirname, "public")));
 app.use("/", indexRouter);
+app.use("/", dashboardRouter);
 
 app.use((req, res) => {
   res.status(404).sendFile(path.resolve(__dirname, "views", "404.html"));
