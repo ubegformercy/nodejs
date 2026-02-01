@@ -1983,69 +1983,82 @@ async function sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId) {
 
 async function cleanupAndWarn() {
   try {
-    if (!GUILD_ID) return;
     if (!client.isReady()) return;
 
-    const guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
-    if (!guild) return;
-
     const now = Date.now();
-    const me = await guild.members.fetchMe().catch(() => null);
-    const canManage = Boolean(me?.permissions?.has(PermissionFlagsBits.ManageRoles));
 
     // Get all active timers from database
     const allTimers = await db.getAllActiveTimers().catch(() => []);
 
-    for (const entry of allTimers) {
-      const userId = entry.user_id;
-      const roleId = entry.role_id;
-      const expiresAt = Number(entry.expires_at);
-      const warnChannelId = entry.warn_channel_id;
-      const isPaused = entry.paused;
-      const pausedRemainingMs = entry.paused_remaining_ms;
-
-      // Skip paused timers
-      if (isPaused) continue;
-
-      if (!expiresAt || expiresAt <= 0) continue;
-
-      const leftMs = expiresAt - now;
-
-      // Expired -> remove role + record
-      if (leftMs <= 0) {
-        if (canManage) {
-          const member = await guild.members.fetch(userId).catch(() => null);
-          const roleObj = guild.roles.cache.get(roleId);
-          if (member && roleObj && me.roles.highest.position > roleObj.position) {
-            await member.roles.remove(roleId).catch(() => null);
-          }
-        }
-
-        await sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId).catch(() => null);
-        await db.clearRoleTimer(userId, roleId).catch(() => null);
-        continue;
-      }
-
-      // Warnings (use actual minutes left)
-      const leftMin = Math.ceil(leftMs / 60_000);
-
-      const warningsSent = entry.warnings_sent || {};
-
-      for (const thresholdMin of WARNING_THRESHOLDS_MIN) {
-        const key = String(thresholdMin);
-
-        if (leftMin <= thresholdMin && !warningsSent[key]) {
-          await sendWarningOrDm(guild, userId, roleId, leftMin, warnChannelId).catch(() => null);
-          await db.markWarningAsSent(userId, roleId, thresholdMin).catch(() => null);
-        }
-      }
+    // Group timers by guild_id for efficient processing
+    const timersByGuild = {};
+    for (const timer of allTimers) {
+      const gId = timer.guild_id || GUILD_ID;
+      if (!gId) continue; // Skip timers without guild_id
+      if (!timersByGuild[gId]) timersByGuild[gId] = [];
+      timersByGuild[gId].push(timer);
     }
 
-    // Execute autopurge tasks
-    await executeAutopurges(guild, now);
+    // Process each guild's timers
+    for (const guildId in timersByGuild) {
+      const guild = await client.guilds.fetch(guildId).catch(() => null);
+      if (!guild) continue;
 
-    // Execute scheduled rolestatus reports
-    await executeScheduledRolestatus(guild, now);
+      const me = await guild.members.fetchMe().catch(() => null);
+      const canManage = Boolean(me?.permissions?.has(PermissionFlagsBits.ManageRoles));
+
+      // Process all timers for this guild
+      for (const entry of timersByGuild[guildId]) {
+        const userId = entry.user_id;
+        const roleId = entry.role_id;
+        const expiresAt = Number(entry.expires_at);
+        const warnChannelId = entry.warn_channel_id;
+        const isPaused = entry.paused;
+        const pausedRemainingMs = entry.paused_remaining_ms;
+
+        // Skip paused timers
+        if (isPaused) continue;
+
+        if (!expiresAt || expiresAt <= 0) continue;
+
+        const leftMs = expiresAt - now;
+
+        // Expired -> remove role + record
+        if (leftMs <= 0) {
+          if (canManage) {
+            const member = await guild.members.fetch(userId).catch(() => null);
+            const roleObj = guild.roles.cache.get(roleId);
+            if (member && roleObj && me.roles.highest.position > roleObj.position) {
+              await member.roles.remove(roleId).catch(() => null);
+            }
+          }
+
+          await sendExpiredNoticeOrDm(guild, userId, roleId, warnChannelId).catch(() => null);
+          await db.clearRoleTimer(userId, roleId).catch(() => null);
+          continue;
+        }
+
+        // Warnings (use actual minutes left)
+        const leftMin = Math.ceil(leftMs / 60_000);
+
+        const warningsSent = entry.warnings_sent || {};
+
+        for (const thresholdMin of WARNING_THRESHOLDS_MIN) {
+          const key = String(thresholdMin);
+
+          if (leftMin <= thresholdMin && !warningsSent[key]) {
+            await sendWarningOrDm(guild, userId, roleId, leftMin, warnChannelId).catch(() => null);
+            await db.markWarningAsSent(userId, roleId, thresholdMin).catch(() => null);
+          }
+        }
+      }
+
+      // Execute autopurge tasks
+      await executeAutopurges(guild, now);
+
+      // Execute scheduled rolestatus reports
+      await executeScheduledRolestatus(guild, now);
+    }
   } catch (e) {
     console.error("cleanupAndWarn error:", e);
   }
