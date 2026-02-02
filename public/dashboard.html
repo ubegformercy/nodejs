@@ -232,6 +232,13 @@
             border-collapse: collapse;
         }
 
+        .table-wrapper {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
         th {
             background: #f9f9f9;
             padding: 12px;
@@ -597,6 +604,102 @@
                 flex-direction: column;
             }
         }
+
+        .role-selector-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #667eea;
+        }
+
+        .role-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .role-selector-container label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .role-selector-container select {
+            padding: 10px 16px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+            min-width: 250px;
+        }
+
+        .role-selector-container select:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            border-color: #5568d3;
+        }
+
+        .role-info {
+            padding: 8px 16px;
+            background: #f0f4ff;
+            border-radius: 6px;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .table-controls {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .control-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group input,
+        .control-group select {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+        }
+
+        .control-group input {
+            cursor: text;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .placeholder-state {
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
@@ -636,8 +739,19 @@
         <div class="section" id="timersSection">
             <h2>⏱️ Active Timers</h2>
             
-            <!-- Add Entry Form -->
-            <div class="add-entry-form">
+            <!-- Role Selector -->
+            <div class="role-selector-section">
+                <div class="role-selector-container">
+                    <label for="roleFilter">Filter by Role:</label>
+                    <select id="roleFilter" onchange="onRoleSelected()">
+                        <option value="">-- Select a Role --</option>
+                    </select>
+                    <span class="role-info" id="roleInfo"></span>
+                </div>
+            </div>
+
+            <!-- Add Entry Form (Only shown after role is selected) -->
+            <div class="add-entry-form" id="addEntryForm" style="display: none;">
                 <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Timer Entry</h3>
                 <div class="form-grid">
                     <div class="form-group">
@@ -649,12 +763,6 @@
                     <div class="form-group">
                         <label for="newMinutes">Minutes</label>
                         <input type="number" id="newMinutes" placeholder="30" min="1" max="10080" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="newRole">Select Role</label>
-                        <select id="newRole" required>
-                            <option value="">-- Select Role --</option>
-                        </select>
                     </div>
                     <div class="form-group">
                         <label for="newChannel">Select Channel (Optional)</label>
@@ -671,7 +779,33 @@
                 </div>
             </div>
 
-            <div id="timersList" class="loading">Loading timers...</div>
+            <!-- Table Controls (Only shown after role is selected) -->
+            <div class="table-controls" id="tableControls" style="display: none;">
+                <div class="control-group">
+                    <input type="text" id="userSearch" placeholder="Search users..." onkeyup="filterAndSortTimers()">
+                    <select id="statusFilter" onchange="filterAndSortTimers()">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                    <select id="sortBy" onchange="filterAndSortTimers()">
+                        <option value="expires-asc">Expires Soonest</option>
+                        <option value="expires-desc">Expires Latest</option>
+                        <option value="time-asc">Time Remaining (Low to High)</option>
+                        <option value="time-desc">Time Remaining (High to Low)</option>
+                        <option value="user-asc">User (A-Z)</option>
+                        <option value="user-desc">User (Z-A)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="timersList" class="placeholder-state">
+                <div class="empty-state">
+                    <div class="empty-state-icon">👆</div>
+                    <p>Select a role above to view timers</p>
+                </div>
+            </div>
         </div>
 
         <div class="section" id="reportsSection">
@@ -705,6 +839,9 @@
         let guildId = null;
         let pendingDeleteId = null;
         let allTimers = [];
+        let selectedRoleId = null;
+        let allRoles = [];
+        let filteredTimers = [];
 
         // Check authentication on page load
         async function checkAuth() {
@@ -783,11 +920,139 @@
             document.getElementById('autopurgeCount').textContent = data.stats.autopurgeSettings || 0;
 
             allTimers = data.timers || [];
-            updateTimersTable(allTimers);
+            
+            // Extract unique roles from timers
+            const roleMap = new Map();
+            allTimers.forEach(timer => {
+                if (!roleMap.has(timer.roleId)) {
+                    roleMap.set(timer.roleId, timer.role);
+                }
+            });
+            
+            allRoles = Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+            
+            // Populate role selector
+            const roleSelect = document.getElementById('roleFilter');
+            const currentValue = roleSelect.value;
+            roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
+            
+            allRoles.forEach(role => {
+                const option = document.createElement('option');
+                option.value = role.id;
+                option.textContent = role.name;
+                roleSelect.appendChild(option);
+            });
+            
+            // Restore previous selection if still available
+            if (currentValue && allRoles.find(r => r.id === currentValue)) {
+                roleSelect.value = currentValue;
+                // Don't trigger change, just update display
+                updateRoleInfo();
+                filterAndSortTimers();
+            } else {
+                // Clear selection and hide form/table
+                selectedRoleId = null;
+                document.getElementById('addEntryForm').style.display = 'none';
+                document.getElementById('tableControls').style.display = 'none';
+                document.getElementById('roleInfo').textContent = '';
+            }
+            
             updateReportsTable(data.reports || []);
             updateAutopurgeTable(data.autopurge || []);
 
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function onRoleSelected() {
+            selectedRoleId = document.getElementById('roleFilter').value;
+            
+            if (!selectedRoleId) {
+                document.getElementById('addEntryForm').style.display = 'none';
+                document.getElementById('tableControls').style.display = 'none';
+                document.getElementById('timersList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👆</div>
+                        <p>Select a role above to view timers</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Show form and controls
+            document.getElementById('addEntryForm').style.display = 'block';
+            document.getElementById('tableControls').style.display = 'block';
+            
+            // Pre-fill the role in the add form (set hidden value or show it)
+            // Actually, we'll let them select users from the filtered role
+            
+            updateRoleInfo();
+            filterAndSortTimers();
+        }
+
+        function updateRoleInfo() {
+            const selectedRoleId = document.getElementById('roleFilter').value;
+            if (!selectedRoleId) return;
+            
+            const role = allRoles.find(r => r.id === selectedRoleId);
+            const timerCount = allTimers.filter(t => t.roleId === selectedRoleId).length;
+            
+            const infoEl = document.getElementById('roleInfo');
+            infoEl.textContent = `${timerCount} timer${timerCount !== 1 ? 's' : ''} active`;
+        }
+
+        function filterAndSortTimers() {
+            if (!selectedRoleId) {
+                filteredTimers = [];
+                return;
+            }
+            
+            // Filter by role
+            let filtered = allTimers.filter(t => t.roleId === selectedRoleId);
+            
+            // Filter by status
+            const statusFilter = document.getElementById('statusFilter')?.value || '';
+            if (statusFilter === 'active') {
+                filtered = filtered.filter(t => !t.paused && t.remaining > 0);
+            } else if (statusFilter === 'paused') {
+                filtered = filtered.filter(t => t.paused);
+            } else if (statusFilter === 'expired') {
+                filtered = filtered.filter(t => t.remaining <= 0);
+            }
+            
+            // Filter by user search
+            const userSearch = document.getElementById('userSearch')?.value.toLowerCase() || '';
+            if (userSearch) {
+                filtered = filtered.filter(t => t.user.toLowerCase().includes(userSearch));
+            }
+            
+            // Sort
+            const sortBy = document.getElementById('sortBy')?.value || 'expires-asc';
+            
+            switch(sortBy) {
+                case 'expires-asc':
+                    filtered.sort((a, b) => a.expiresAt - b.expiresAt);
+                    break;
+                case 'expires-desc':
+                    filtered.sort((a, b) => b.expiresAt - a.expiresAt);
+                    break;
+                case 'time-asc':
+                    filtered.sort((a, b) => a.remaining - b.remaining);
+                    break;
+                case 'time-desc':
+                    filtered.sort((a, b) => b.remaining - a.remaining);
+                    break;
+                case 'user-asc':
+                    filtered.sort((a, b) => a.user.localeCompare(b.user));
+                    break;
+                case 'user-desc':
+                    filtered.sort((a, b) => b.user.localeCompare(a.user));
+                    break;
+            }
+            
+            filteredTimers = filtered;
+            updateTimersTable(filteredTimers);
+            updateRoleInfo();
         }
 
         function updateTimersTable(timers) {
@@ -797,25 +1062,25 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">⏰</div>
-                        <p>No active timers</p>
+                        <p>No timers match your filters</p>
                     </div>
                 `;
                 return;
             }
 
             let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Role</th>
-                            <th>Time Remaining</th>
-                            <th>Expires</th>
-                            <th>Status</th>
-                            <th style="text-align: right;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Time Remaining</th>
+                                <th>Expires</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             `;
 
             timers.forEach(timer => {
@@ -825,7 +1090,6 @@
                 html += `
                     <tr>
                         <td>${timer.user}</td>
-                        <td>${timer.role}</td>
                         <td class="editable-cell" onclick="editTime(${timer.id}, '${timer.formattedTime}')" title="Click to edit">
                             ${timer.formattedTime} ✏️
                         </td>
@@ -840,7 +1104,7 @@
                 `;
             });
 
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             container.innerHTML = html;
         }
 
@@ -981,7 +1245,7 @@
         async function addNewTimer() {
             const userId = document.getElementById('newUser').value.trim();
             const minutes = parseInt(document.getElementById('newMinutes').value);
-            const roleId = document.getElementById('newRole').value.trim();
+            const roleId = selectedRoleId; // Use the selected role from dropdown
             const channelId = document.getElementById('newChannel').value.trim() || null;
 
             if (!userId || !minutes || !roleId) {
@@ -1009,7 +1273,6 @@
                 showAlert('Timer added successfully!', 'success');
                 document.getElementById('newUser').value = '';
                 document.getElementById('newMinutes').value = '';
-                document.getElementById('newRole').value = '';
                 document.getElementById('newChannel').value = '';
                 loadDashboard();
             } catch (err) {
