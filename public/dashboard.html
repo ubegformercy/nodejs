@@ -1094,14 +1094,14 @@
                 html += `
                     <tr>
                         <td>${timer.user}</td>
-                        <td class="editable-cell" onclick="editTime(${timer.id}, '${timer.formattedTime}')" title="Click to edit">
+                        <td class="editable-cell" onclick="editTime(${timer.id})" title="Click to edit">
                             ${timer.formattedTime} ✏️
                         </td>
                         <td>${new Date(timer.expiresAt).toLocaleString()}</td>
                         <td><span class="badge ${badge}">${status}</span></td>
                         <td class="action-column">
                             <div class="action-buttons">
-                                <button class="delete-btn" onclick="deleteTimer(${timer.id}, '${timer.user}', '${timer.role}')">✕</button>
+                                <button class="delete-btn" onclick="deleteTimer(${timer.id})" data-user="${timer.user}" data-role="${timer.role}">✕</button>
                             </div>
                         </td>
                     </tr>
@@ -1113,9 +1113,6 @@
         }
 
         function editTime(timerId, currentTime) {
-            const cell = event.target.closest('.editable-cell');
-            if (!cell) return;
-            
             // Find the timer and calculate minutes
             const timer = allTimers.find(t => t.id === timerId);
             if (!timer) {
@@ -1130,6 +1127,13 @@
             
             if (minutes < 1 || isNaN(minutes)) {
                 showAlert('Invalid timer data', 'error');
+                return;
+            }
+            
+            // Find and replace the editable cell
+            const cell = event.currentTarget;
+            if (!cell) {
+                console.error('Could not find cell element');
                 return;
             }
             
@@ -1210,7 +1214,12 @@
             loadDashboard();
         }
 
-        function deleteTimer(timerId, userName, roleName) {
+        function deleteTimer(timerId) {
+            // Get the button element to extract data attributes
+            const button = event.currentTarget;
+            const userName = button.getAttribute('data-user') || 'Unknown User';
+            const roleName = button.getAttribute('data-role') || 'Unknown Role';
+            
             pendingDeleteId = timerId;
             document.getElementById('confirmMessage').textContent = 
                 `Are you sure you want to delete the timer for ${userName} with role ${roleName}?`;
