@@ -1403,9 +1403,13 @@
                 
                 const data = await response.json();
                 
-                // Populate User dropdown
+                // Populate User dropdown - Clear old options first (keeping placeholder)
                 const userSelect = document.getElementById('newUser');
                 if (userSelect && data.users && data.users.length > 0) {
+                    // Remove all options except the placeholder
+                    while (userSelect.options.length > 1) {
+                        userSelect.remove(1);
+                    }
                     data.users.forEach(user => {
                         const option = document.createElement('option');
                         option.value = user.id;
@@ -1414,9 +1418,13 @@
                     });
                 }
                 
-                // Populate Role dropdown
+                // Populate Role dropdown - Clear old options first (keeping placeholder)
                 const roleSelect = document.getElementById('newRole');
                 if (roleSelect && data.roles && data.roles.length > 0) {
+                    // Remove all options except the placeholder
+                    while (roleSelect.options.length > 1) {
+                        roleSelect.remove(1);
+                    }
                     data.roles.forEach(role => {
                         const option = document.createElement('option');
                         option.value = role.id;
@@ -1425,9 +1433,13 @@
                     });
                 }
                 
-                // Populate Channel dropdown
+                // Populate Channel dropdown - Clear old options first (keeping placeholder)
                 const channelSelect = document.getElementById('newChannel');
                 if (channelSelect && data.channels && data.channels.length > 0) {
+                    // Remove all options except the placeholder
+                    while (channelSelect.options.length > 1) {
+                        channelSelect.remove(1);
+                    }
                     data.channels.forEach(channel => {
                         const option = document.createElement('option');
                         option.value = channel.id;
