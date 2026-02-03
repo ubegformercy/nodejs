@@ -176,6 +176,7 @@ router.get('/api/dashboard', requireAuth, requireGuildAccess, async (req, res) =
         }
 
         return {
+          id: timer.id,
           user: userName,
           userId: timer.user_id,
           role: roleName,
