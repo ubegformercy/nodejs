@@ -506,13 +506,30 @@ router.get('/api/dropdown-data', requireAuth, requireGuildAccess, async (req, re
       if (guild) {
         // Fetch all members to populate the dropdown completely
         const members = await guild.members.fetch({ limit: 1000 });
-        data.users = members
+        
+        // Convert Collection to array and process
+        data.users = Array.from(members.values())
           .filter(m => !m.user.bot) // Exclude bots
-          .map(m => ({
-            id: m.user.id,
-            name: m.user.username,
-            displayName: m.displayName || m.user.username
-          }))
+          .map(m => {
+            // Determine user type/status
+            let userType = 'member';
+            if (m.user.bot) {
+              userType = 'bot';
+            } else if (m.roles.highest.id === guild.id) {
+              userType = 'member'; // No special role
+            } else {
+              userType = 'member'; // Regular member with roles
+            }
+            
+            return {
+              id: m.user.id,
+              name: m.user.username,
+              displayName: m.displayName || m.user.username,
+              userType: userType,
+              status: m.user.presence?.status || 'offline',
+              isBot: m.user.bot || false
+            };
+          })
           .sort((a, b) => a.displayName.localeCompare(b.displayName));
       }
     } catch (err) {
@@ -520,13 +537,23 @@ router.get('/api/dropdown-data', requireAuth, requireGuildAccess, async (req, re
       // Fallback to cache if fetch fails
       try {
         if (guild) {
-          data.users = guild.members.cache
+          data.users = Array.from(guild.members.cache.values())
             .filter(m => !m.user.bot)
-            .map(m => ({
-              id: m.user.id,
-              name: m.user.username,
-              displayName: m.displayName || m.user.username
-            }))
+            .map(m => {
+              let userType = 'member';
+              if (m.user.bot) {
+                userType = 'bot';
+              }
+              
+              return {
+                id: m.user.id,
+                name: m.user.username,
+                displayName: m.displayName || m.user.username,
+                userType: userType,
+                status: m.user.presence?.status || 'offline',
+                isBot: m.user.bot || false
+              };
+            })
             .sort((a, b) => a.displayName.localeCompare(b.displayName));
         }
       } catch (cacheErr) {

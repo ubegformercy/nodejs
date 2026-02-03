@@ -631,7 +631,7 @@
         }
 
         .debug-log.success {
-            color: #4ade80;
+            color: #51cf66;
         }
 
         .debug-log-time {
@@ -776,6 +776,136 @@
             align-items: center;
             justify-content: center;
         }
+
+        /* Searchable Dropdown Styles */
+        .searchable-dropdown-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .dropdown-search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .dropdown-search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .dropdown-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .dropdown-list.active {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .dropdown-item:hover {
+            background: #f5f5f5;
+        }
+
+        .dropdown-item.selected {
+            background: #e8f0ff;
+            border-left: 3px solid #667eea;
+            padding-left: 9px;
+        }
+
+        .dropdown-item-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .dropdown-item-type {
+            font-size: 12px;
+            margin-left: auto;
+            color: #999;
+        }
+
+        .type-badge {
+            background: #e7f3ff;
+            color: #004085;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .type-badge.online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .type-badge.idle {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .type-badge.dnd {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .type-badge.offline {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .dropdown-no-results {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .dropdown-selected-value {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 40px;
+        }
+
+        .dropdown-selected-value.placeholder {
+            color: #999;
+        }
     </style>
 </head>
 <body>
@@ -831,10 +961,12 @@
                 <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Timer Entry</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="newUser">Select User</label>
-                        <select id="newUser" required>
-                            <option value="">-- Select User --</option>
-                        </select>
+                        <label for="newUserSearch">Select User</label>
+                        <div class="searchable-dropdown-wrapper">
+                            <input type="text" id="newUserSearch" class="dropdown-search-input" placeholder="🔍 Search users..." autocomplete="off">
+                            <div class="dropdown-list" id="newUserList"></div>
+                            <input type="hidden" id="newUser" required>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="newMinutes">Minutes</label>
@@ -928,6 +1060,84 @@
         let allRoles = [];
         let filteredTimers = [];
         let debugLogs = [];
+        let allUsers = []; // Store all users for searchable dropdown
+
+        // Searchable Dropdown Management
+        function initSearchableDropdown() {
+            const searchInput = document.getElementById('newUserSearch');
+            const dropdown = document.getElementById('newUserList');
+            const hiddenInput = document.getElementById('newUser');
+            
+            if (!searchInput || !dropdown) return;
+            
+            // Show dropdown on click
+            searchInput.addEventListener('click', () => {
+                renderDropdownOptions(allUsers, '');
+                dropdown.classList.add('active');
+            });
+            
+            // Filter on input
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                renderDropdownOptions(allUsers, query);
+                if (allUsers.length > 0) {
+                    dropdown.classList.add('active');
+                }
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.searchable-dropdown-wrapper')) {
+                    dropdown.classList.remove('active');
+                }
+            });
+        }
+        
+        function renderDropdownOptions(users, query) {
+            const dropdown = document.getElementById('newUserList');
+            const searchInput = document.getElementById('newUserSearch');
+            
+            if (!dropdown) return;
+            
+            // Filter users based on query
+            const filtered = users.filter(user => {
+                const displayName = (user.displayName || user.name || '').toLowerCase();
+                return displayName.includes(query);
+            });
+            
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="dropdown-no-results">No users found</div>';
+                return;
+            }
+            
+            dropdown.innerHTML = filtered.map(user => {
+                const statusEmoji = {
+                    'online': '🟢',
+                    'idle': '🟡',
+                    'dnd': '🔴',
+                    'offline': '⚪'
+                }[user.status] || '⚪';
+                
+                const typeBadge = `<span class="type-badge ${user.status || 'offline'}">${statusEmoji} ${user.status || 'offline'}</span>`;
+                
+                return `
+                    <div class="dropdown-item" onclick="selectUser('${user.id}', '${(user.displayName || user.name).replace(/'/g, "\\'")}')">
+                        <span>${user.displayName || user.name}</span>
+                        <span class="dropdown-item-type">${typeBadge}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function selectUser(userId, displayName) {
+            const searchInput = document.getElementById('newUserSearch');
+            const hiddenInput = document.getElementById('newUser');
+            const dropdown = document.getElementById('newUserList');
+            
+            if (hiddenInput) hiddenInput.value = userId;
+            if (searchInput) searchInput.value = displayName;
+            dropdown.classList.remove('active');
+        }
 
         // Debug Logging System
         function addDebugLog(message, type = 'info') {
@@ -1603,22 +1813,17 @@
                 
                 const data = await response.json();
                 
-                // Populate User dropdown - Clear old options first (keeping placeholder)
-                const userSelect = document.getElementById('newUser');
-                if (userSelect) {
-                    // Remove all options except the placeholder
-                    while (userSelect.options.length > 1) {
-                        userSelect.remove(1);
-                    }
-                    // Add new options if data available
-                    if (data.users && data.users.length > 0) {
-                        data.users.forEach(user => {
-                            const option = document.createElement('option');
-                            option.value = user.id;
-                            option.textContent = user.displayName || user.name;
-                            userSelect.appendChild(option);
-                        });
-                    }
+                // Store users in global array for searchable dropdown
+                if (data.users && data.users.length > 0) {
+                    allUsers = data.users.sort((a, b) => {
+                        const aName = (a.displayName || a.name || '').toLowerCase();
+                        const bName = (b.displayName || b.name || '').toLowerCase();
+                        return aName.localeCompare(bName);
+                    });
+                    console.log(`[Searchable Dropdown] Loaded ${allUsers.length} users`);
+                } else {
+                    allUsers = [];
+                    console.warn('[Searchable Dropdown] No users found');
                 }
                 
                 // Populate Role dropdown - Clear old options first (keeping placeholder)
@@ -1657,7 +1862,7 @@
                     }
                 }
                 
-                console.log(`[Dropdown] Loaded: ${data.users.length} users, ${data.roles.length} roles, ${data.channels.length} channels`);
+                console.log(`[Dropdown] Loaded: ${allUsers.length} users, ${data.roles.length} roles, ${data.channels.length} channels`);
             } catch (err) {
                 console.error('Error loading dropdown data:', err);
                 // Don't show error - form will still work
@@ -1674,7 +1879,8 @@
             const isAuth = await checkAuth();
             if (isAuth) {
                 loadDashboard();
-                loadDropdownData();
+                await loadDropdownData();
+                initSearchableDropdown(); // Initialize the searchable dropdown
                 setInterval(loadDashboard, 30000);
                 setInterval(loadDropdownData, 60000); // Refresh dropdowns every minute
             }
