@@ -1675,7 +1675,34 @@ async function executeScheduledRolestatus(guild, now) {
 
     for (const schedule of schedules) {
       const channel = guild.channels.cache.get(schedule.channel_id);
-      if (!channel) continue;
+      if (!channel) {
+        console.warn(`[SCHEDULED-REPORT] Channel ${schedule.channel_id} not found in guild ${guild.id}`);
+        continue;
+      }
+
+      // Check if channel is text-based
+      if (!channel.isTextBased()) {
+        console.warn(`[SCHEDULED-REPORT] Channel ${channel.name} is not text-based`);
+        continue;
+      }
+
+      // Check bot permissions in this specific channel
+      const me = await guild.members.fetchMe().catch(() => null);
+      if (!me) {
+        console.warn(`[SCHEDULED-REPORT] Could not fetch bot member in guild ${guild.id}`);
+        continue;
+      }
+
+      const perms = channel.permissionsFor(me);
+      if (!perms?.has(PermissionFlagsBits.SendMessages)) {
+        console.error(`[SCHEDULED-REPORT] Missing SendMessages permission in channel ${channel.name} (${schedule.channel_id}) for guild ${guild.id}`);
+        continue;
+      }
+
+      if (!perms?.has(PermissionFlagsBits.EmbedLinks)) {
+        console.error(`[SCHEDULED-REPORT] Missing EmbedLinks permission in channel ${channel.name} (${schedule.channel_id}) for guild ${guild.id}`);
+        continue;
+      }
 
       // Check if it's time to run the report
       const lastReportTime = schedule.last_report_at ? new Date(schedule.last_report_at).getTime() : 0;
@@ -1704,8 +1731,12 @@ async function executeScheduledRolestatus(guild, now) {
             )
             .setFooter({ text: "BoostMon • Automated Report" });
 
-          await channel.send({ embeds: [embed] }).catch(() => null);
-          await db.updateRolestatusLastReport(guild.id, schedule.role_id, schedule.channel_id);
+          try {
+            await channel.send({ embeds: [embed] });
+            await db.updateRolestatusLastReport(guild.id, schedule.role_id, schedule.channel_id);
+          } catch (err) {
+            console.error(`[SCHEDULED-REPORT] Failed to send empty report to ${channel.name}: ${err.message}`);
+          }
           continue;
         }
 
@@ -1736,8 +1767,12 @@ async function executeScheduledRolestatus(guild, now) {
             )
             .setFooter({ text: "BoostMon • Automated Report" });
 
-          await channel.send({ embeds: [embed] }).catch(() => null);
-          await db.updateRolestatusLastReport(guild.id, schedule.role_id, schedule.channel_id);
+          try {
+            await channel.send({ embeds: [embed] });
+            await db.updateRolestatusLastReport(guild.id, schedule.role_id, schedule.channel_id);
+          } catch (err) {
+            console.error(`[SCHEDULED-REPORT] Failed to send left-members report to ${channel.name}: ${err.message}`);
+          }
           continue;
         }
 
@@ -1816,10 +1851,22 @@ async function executeScheduledRolestatus(guild, now) {
         // Send new message
         let newMessage = null;
         try {
+          // Double-check permissions right before sending
+          const currentPerms = channel.permissionsFor(me);
+          if (!currentPerms?.has(PermissionFlagsBits.SendMessages)) {
+            console.error(`[SCHEDULED-REPORT] Permission check failed right before send in ${channel.name}: Missing SendMessages`);
+            continue;
+          }
+          if (!currentPerms?.has(PermissionFlagsBits.EmbedLinks)) {
+            console.error(`[SCHEDULED-REPORT] Permission check failed right before send in ${channel.name}: Missing EmbedLinks`);
+            continue;
+          }
+
           newMessage = await channel.send({ embeds: [embed] });
-          console.log(`[SCHEDULED-REPORT] Sent new report to ${channel.name} (message ID: ${newMessage.id})`);
+          console.log(`[SCHEDULED-REPORT] Sent new report to ${channel.name} in guild ${guild.name} (message ID: ${newMessage.id})`);
         } catch (err) {
-          console.warn(`[SCHEDULED-REPORT] Failed to send report to ${channel.name}: ${err.message}`);
+          console.error(`[SCHEDULED-REPORT] Failed to send report to ${channel.name} in guild ${guild.name}: ${err.message}`);
+          console.error(`[SCHEDULED-REPORT] Error code: ${err.code}, HTTP Status: ${err.status}`);
         }
 
         // Update last report time and message ID
@@ -1828,7 +1875,7 @@ async function executeScheduledRolestatus(guild, now) {
           await db.updateRolestatusLastMessageId(guild.id, schedule.role_id, schedule.channel_id, newMessage.id);
         }
       } catch (err) {
-        console.error(`[SCHEDULED-REPORT] Error processing schedule for role ${schedule.role_id}:`, err.message);
+        console.error(`[SCHEDULED-REPORT] Error processing schedule for role ${schedule.role_id} in guild ${guild.name}: ${err.message}`);
       }
     }
   } catch (err) {
