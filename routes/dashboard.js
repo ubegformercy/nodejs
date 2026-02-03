@@ -501,22 +501,38 @@ router.get('/api/dropdown-data', requireAuth, requireGuildAccess, async (req, re
       return res.status(500).json({ error: 'Discord client not available' });
     }
 
-    // Get cached members (no fetch, just use what's already cached)
+    // Fetch all members in the guild
     try {
       if (guild) {
-        data.users = guild.members.cache
+        // Fetch all members to populate the dropdown completely
+        const members = await guild.members.fetch({ limit: 1000 });
+        data.users = members
           .filter(m => !m.user.bot) // Exclude bots
           .map(m => ({
             id: m.user.id,
             name: m.user.username,
             displayName: m.displayName || m.user.username
           }))
-          .sort((a, b) => a.displayName.localeCompare(b.displayName))
-          .slice(0, 500); // Allow up to 500 cached members
+          .sort((a, b) => a.displayName.localeCompare(b.displayName));
       }
     } catch (err) {
-      console.error('Error processing cached guild members:', err);
-      data.users = [];
+      console.error('Error fetching guild members:', err);
+      // Fallback to cache if fetch fails
+      try {
+        if (guild) {
+          data.users = guild.members.cache
+            .filter(m => !m.user.bot)
+            .map(m => ({
+              id: m.user.id,
+              name: m.user.username,
+              displayName: m.displayName || m.user.username
+            }))
+            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+        }
+      } catch (cacheErr) {
+        console.error('Error processing cached members:', cacheErr);
+        data.users = [];
+      }
     }
 
     // Get all roles in the guild
