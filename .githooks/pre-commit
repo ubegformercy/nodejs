@@ -1,0 +1,22 @@
+#!/bin/bash
+# Pre-commit hook that bumps patch version automatically
+# Install this by running: git config core.hooksPath .githooks
+
+# Colors for output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Check if version.json exists
+if [ -f "version.json" ]; then
+    echo -e "${BLUE}[Pre-commit] Bumping patch version...${NC}"
+    node scripts/version-bump.js patch "Auto-bumped on commit"
+    
+    # Add the updated version.json to the staging area
+    git add version.json
+    echo -e "${GREEN}[Pre-commit] Version bumped and staged${NC}"
+else
+    echo -e "${BLUE}[Pre-commit] version.json not found, skipping version bump${NC}"
+fi
+
+exit 0
