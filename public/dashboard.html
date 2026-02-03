@@ -1235,9 +1235,23 @@
             }
 
             console.log(`[Delete] Confirming deletion of timer ${pendingDeleteId}`);
+            console.log(`[Delete] Current guildId: ${guildId}`);
 
             try {
-                const response = await fetch(`/api/timer/delete?guildId=${guildId}`, {
+                // Ensure guildId is set
+                if (!guildId) {
+                    guildId = getGuildId();
+                    console.log(`[Delete] Retrieved guildId from getGuildId: ${guildId}`);
+                }
+
+                if (!guildId) {
+                    throw new Error('Guild ID not available');
+                }
+
+                const url = `/api/timer/delete?guildId=${guildId}`;
+                console.log(`[Delete] Fetching: ${url}`);
+
+                const response = await fetch(url, {
                     method: 'DELETE',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
@@ -1245,18 +1259,21 @@
                 });
 
                 console.log(`[Delete] Response status: ${response.status}`);
+                console.log(`[Delete] Response headers: ${response.headers.get('content-type')}`);
 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to delete timer');
+                    const error = await response.json().catch(() => ({ error: response.statusText }));
+                    throw new Error(error.error || `HTTP ${response.status}`);
                 }
 
-                console.log('[Delete] Timer deleted successfully');
+                const result = await response.json();
+                console.log('[Delete] Response:', result);
                 showAlert('Timer deleted successfully!', 'success');
                 cancelDelete();
                 loadDashboard();
             } catch (err) {
                 console.error('[Delete] Error deleting timer:', err);
+                console.error('[Delete] Stack:', err.stack);
                 showAlert(`Error: ${err.message}`, 'error');
                 cancelDelete();
             }
