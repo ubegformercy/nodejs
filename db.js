@@ -83,6 +83,22 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS guild_members_cache (
+        id SERIAL PRIMARY KEY,
+        guild_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255) NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        display_name VARCHAR(255),
+        is_bot BOOLEAN DEFAULT false,
+        avatar_url TEXT,
+        last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, user_id)
+      );
+    `);
+
     // Add missing column if it doesn't exist (for existing databases)
     try {
       await client.query(`
@@ -119,6 +135,9 @@ async function initDatabase() {
       'CREATE INDEX IF NOT EXISTS idx_autopurge_settings_enabled ON autopurge_settings(enabled)',
       'CREATE INDEX IF NOT EXISTS idx_rolestatus_schedules_enabled ON rolestatus_schedules(enabled)',
       'CREATE INDEX IF NOT EXISTS idx_rolestatus_schedules_guild_role ON rolestatus_schedules(guild_id, role_id)',
+      'CREATE INDEX IF NOT EXISTS idx_guild_members_cache_guild_id ON guild_members_cache(guild_id)',
+      'CREATE INDEX IF NOT EXISTS idx_guild_members_cache_user_id ON guild_members_cache(guild_id, user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_guild_members_cache_username ON guild_members_cache(guild_id, username)',
     ];
 
       for (const indexQuery of indexes) {
@@ -569,6 +588,85 @@ async function updateRolestatusLastMessageId(guildId, roleId, channelId, message
   }
 }
 
+// ===== GUILD MEMBERS CACHE OPERATIONS =====
+
+async function upsertGuildMember(guildId, userId, username, displayName, isBot, avatarUrl) {
+  try {
+    const result = await pool.query(
+      `INSERT INTO guild_members_cache (guild_id, user_id, username, display_name, is_bot, avatar_url, last_synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       ON CONFLICT (guild_id, user_id) 
+       DO UPDATE SET username = $3, display_name = $4, is_bot = $5, avatar_url = $6, last_synced_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [guildId, userId, username, displayName, isBot, avatarUrl]
+    );
+    return result.rows[0];
+  } catch (err) {
+    console.error("upsertGuildMember error:", err);
+    throw err;
+  }
+}
+
+async function getGuildMembers(guildId) {
+  try {
+    const result = await pool.query(
+      `SELECT user_id as id, username as name, display_name as displayName, is_bot as isBot, avatar_url as avatarUrl
+       FROM guild_members_cache 
+       WHERE guild_id = $1 
+       ORDER BY display_name ASC, username ASC`,
+      [guildId]
+    );
+    return result.rows;
+  } catch (err) {
+    console.error("getGuildMembers error:", err);
+    return [];
+  }
+}
+
+async function searchGuildMembers(guildId, query) {
+  try {
+    const searchQuery = `%${query}%`;
+    const result = await pool.query(
+      `SELECT user_id as id, username as name, display_name as displayName, is_bot as isBot, avatar_url as avatarUrl
+       FROM guild_members_cache 
+       WHERE guild_id = $1 AND (username ILIKE $2 OR display_name ILIKE $2 OR user_id = $3)
+       ORDER BY display_name ASC, username ASC
+       LIMIT 50`,
+      [guildId, searchQuery, query]
+    );
+    return result.rows;
+  } catch (err) {
+    console.error("searchGuildMembers error:", err);
+    return [];
+  }
+}
+
+async function clearGuildMemberCache(guildId) {
+  try {
+    await pool.query(
+      `DELETE FROM guild_members_cache WHERE guild_id = $1`,
+      [guildId]
+    );
+    return true;
+  } catch (err) {
+    console.error("clearGuildMemberCache error:", err);
+    return false;
+  }
+}
+
+async function getLastSyncTime(guildId) {
+  try {
+    const result = await pool.query(
+      `SELECT MAX(last_synced_at) as last_sync FROM guild_members_cache WHERE guild_id = $1`,
+      [guildId]
+    );
+    return result.rows[0]?.last_sync || null;
+  } catch (err) {
+    console.error("getLastSyncTime error:", err);
+    return null;
+  }
+}
+
 async function closePool() {
   await pool.end();
   console.log("Database connection pool closed");
@@ -608,5 +706,11 @@ module.exports = {
   disableRolestatusSchedule,
   updateRolestatusLastReport,
   updateRolestatusLastMessageId,
+  // Guild members cache
+  upsertGuildMember,
+  getGuildMembers,
+  searchGuildMembers,
+  clearGuildMemberCache,
+  getLastSyncTime,
   closePool,
 };

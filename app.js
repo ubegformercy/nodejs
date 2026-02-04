@@ -30,6 +30,7 @@ const indexRouter = require("./routes/index");
 const authRouter = require("./routes/auth");
 const dashboardRouter = require("./routes/dashboard");
 const db = require("./db");
+const guildMemberSync = require("./guild-member-sync");
 const BOOSTMON_ICON_URL = "https://raw.githubusercontent.com/ubegformercy/nodejs/main/public/images/boostmon.png";
 console.log("=== BoostMon app.js booted ===");
 console.log("DISCORD_TOKEN present:", Boolean(process.env.DISCORD_TOKEN));
@@ -185,6 +186,9 @@ client.once("ready", async () => {
 
   // Initialize database
   await db.initDatabase();
+
+  // Start guild member sync service
+  guildMemberSync.startBackgroundSync(client);
 
   // Backfill guild_id for timers that don't have it yet
   try {

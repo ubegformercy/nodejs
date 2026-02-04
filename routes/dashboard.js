@@ -501,61 +501,78 @@ router.get('/api/dropdown-data', requireAuth, requireGuildAccess, async (req, re
       return res.status(500).json({ error: 'Discord client not available' });
     }
 
-    // Get users from guild member cache (avoid timeout issues with large guilds)
+    // Get users from guild member cache (database, synced from Discord periodically)
     try {
       if (guild) {
-        // Build a map of cached members for quick lookup
-        const cachedUsersMap = new Map();
+        // Get members from the database cache (fast, no Discord API calls)
+        const cachedMembers = await db.getGuildMembers(guildId);
         
-        Array.from(guild.members.cache.values())
-          .filter(m => !m.user.bot) // Exclude bots
-          .forEach(m => {
-            cachedUsersMap.set(m.user.id, {
+        if (cachedMembers && cachedMembers.length > 0) {
+          // Use cached members
+          data.users = cachedMembers.map(member => ({
+            id: member.id,
+            name: member.name,
+            displayName: member.displayName || member.name,
+            userType: 'member',
+            status: 'offline', // We don't track status in cache, keep it simple
+            isBot: member.isBot,
+            source: 'cached'
+          })).sort((a, b) => a.displayName.localeCompare(b.displayName));
+          
+          console.log(`[Dropdown] Loaded ${data.users.length} users from database cache for guild ${guildId}`);
+        } else {
+          // If cache is empty, fall back to live Discord cache (happens on first sync)
+          const discordMembers = Array.from(guild.members.cache.values())
+            .filter(m => !m.user.bot)
+            .map(m => ({
               id: m.user.id,
               name: m.user.username,
               displayName: m.displayName || m.user.username,
               userType: 'member',
               status: m.user.presence?.status || 'offline',
               isBot: false,
-              source: 'cache'
-            });
-          });
+              source: 'live-cache'
+            }))
+            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+          
+          data.users = discordMembers;
+          console.log(`[Dropdown] Cache empty, loaded ${data.users.length} users from live Discord cache`);
+        }
         
-        // Also fetch users from database who have active timers (they might not be in cache)
+        // Also add users who have active timers but might not be in the guild anymore
         try {
           const timerUsers = await db.query(
             `SELECT DISTINCT user_id, user_name FROM role_timers WHERE guild_id = $1`,
             [guildId]
           );
           
+          const userMap = new Map();
+          data.users.forEach(u => userMap.set(u.id, u));
+          
           timerUsers.rows.forEach(row => {
-            // Only add if not already in cache (to avoid duplicates)
-            if (!cachedUsersMap.has(row.user_id)) {
-              cachedUsersMap.set(row.user_id, {
+            if (!userMap.has(row.user_id)) {
+              userMap.set(row.user_id, {
                 id: row.user_id,
                 name: row.user_name || row.user_id,
                 displayName: row.user_name || row.user_id,
                 userType: 'member',
                 status: 'offline',
                 isBot: false,
-                source: 'database'
+                source: 'timer-archive'
               });
             }
           });
+          
+          data.users = Array.from(userMap.values())
+            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+          
+          console.log(`[Dropdown] Added ${timerUsers.rows.length} archived timer users`);
         } catch (dbErr) {
-          console.warn('Could not fetch users from database:', dbErr.message);
-          // Continue with cached users only
+          console.warn('Could not fetch timer users:', dbErr.message);
         }
-        
-        // Convert map to array and sort
-        data.users = Array.from(cachedUsersMap.values())
-          .sort((a, b) => a.displayName.localeCompare(b.displayName));
-        
-        console.log(`[Dropdown] Loaded ${data.users.length} users (${cachedUsersMap.size} total, cache + database)`);
       }
     } catch (err) {
-      console.error('Error processing guild members:', err);
-      // Fallback to empty array if processing fails
+      console.error('Error loading guild members:', err);
       data.users = [];
     }
 
@@ -654,44 +671,59 @@ router.post('/api/search-user', requireAuth, async (req, res) => {
         };
       }
     } else {
-      // Search by username in guild cache first
-      const members = Array.from(guild.members.cache.values());
-      const match = members.find(m => 
-        m.user.username.toLowerCase() === searchQuery.toLowerCase() ||
-        m.displayName.toLowerCase() === searchQuery.toLowerCase() ||
-        m.user.username.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-      if (match) {
+      // Search by username in database cache first (fast lookup)
+      const cachedUsers = await db.searchGuildMembers(guildId, searchQuery);
+      
+      if (cachedUsers && cachedUsers.length > 0) {
+        const match = cachedUsers[0]; // Return first match
         foundUser = {
-          id: match.user.id,
-          name: match.user.username,
-          displayName: match.displayName || match.user.username,
-          isBot: match.user.bot,
-          status: match.user.presence?.status || 'offline',
-          source: 'cache'
+          id: match.id,
+          name: match.name,
+          displayName: match.displayName || match.name,
+          isBot: match.isBot,
+          status: 'offline',
+          source: 'cached'
         };
       } else {
-        // Try to search in database
-        try {
-          const dbResult = await db.query(
-            `SELECT DISTINCT user_id, user_name FROM role_timers WHERE guild_id = $1 AND (user_name ILIKE $2 OR user_id = $3)`,
-            [guildId, `%${searchQuery}%`, searchQuery]
-          );
+        // Fall back to live Discord cache (for recently joined members not yet synced)
+        const members = Array.from(guild.members.cache.values());
+        const match = members.find(m => 
+          m.user.username.toLowerCase() === searchQuery.toLowerCase() ||
+          m.displayName.toLowerCase() === searchQuery.toLowerCase() ||
+          m.user.username.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
-          if (dbResult.rows.length > 0) {
-            const row = dbResult.rows[0];
-            foundUser = {
-              id: row.user_id,
-              name: row.user_name || row.user_id,
-              displayName: row.user_name || row.user_id,
-              isBot: false,
-              status: 'offline',
-              source: 'database'
-            };
+        if (match) {
+          foundUser = {
+            id: match.user.id,
+            name: match.user.username,
+            displayName: match.displayName || match.user.username,
+            isBot: match.user.bot,
+            status: match.user.presence?.status || 'offline',
+            source: 'live-cache'
+          };
+        } else {
+          // Try to search in timer history
+          try {
+            const dbResult = await db.query(
+              `SELECT DISTINCT user_id, user_name FROM role_timers WHERE guild_id = $1 AND (user_name ILIKE $2 OR user_id = $3)`,
+              [guildId, `%${searchQuery}%`, searchQuery]
+            );
+
+            if (dbResult.rows.length > 0) {
+              const row = dbResult.rows[0];
+              foundUser = {
+                id: row.user_id,
+                name: row.user_name || row.user_id,
+                displayName: row.user_name || row.user_id,
+                isBot: false,
+                status: 'offline',
+                source: 'timer-history'
+              };
+            }
+          } catch (dbErr) {
+            console.warn('Database search error:', dbErr.message);
           }
-        } catch (dbErr) {
-          console.warn('Database search error:', dbErr.message);
         }
       }
     }
