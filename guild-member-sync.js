@@ -5,9 +5,9 @@
 const db = require('./db');
 
 // Configuration
-const SYNC_INTERVAL_MS = 30 * 60 * 1000; // Sync every 30 minutes
+const SYNC_INTERVAL_MS = 60 * 60 * 1000; // Sync every hour (3600000 ms)
 const BATCH_SIZE = 100; // Fetch 100 members at a time to avoid rate limits
-const SYNC_TIMEOUT_MS = 5 * 60 * 1000; // 5 minute timeout per guild
+const SYNC_TIMEOUT_MS = 10 * 60 * 1000; // 10 minute timeout per guild (increased for hourly syncs)
 
 let activeSyncs = new Map(); // Track active syncs per guild to avoid duplicates
 

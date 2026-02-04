@@ -970,7 +970,12 @@
                 <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Timer Entry</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="newUserSearch">Select User <span style="color: #999; font-size: 12px;">(or enter Discord ID)</span></label>
+                        <label for="newUserSearch">
+                            Select User <span style="color: #999; font-size: 12px;">(or enter Discord ID)</span>
+                            <span id="memberCountBadge" style="margin-left: 10px; padding: 2px 8px; background: #e8f4f8; border-radius: 12px; font-size: 11px; color: #0066cc; display: none;">
+                                📊 <span id="memberCount">0</span> members cached
+                            </span>
+                        </label>
                         <div class="searchable-dropdown-wrapper">
                             <input type="text" id="newUserSearch" class="dropdown-search-input" placeholder="🔍 Search users or paste Discord ID..." autocomplete="off">
                             <div class="dropdown-list" id="newUserList"></div>
@@ -1105,7 +1110,7 @@
                         manualOption.style.borderLeft = '3px solid #667eea';
                         manualOption.style.paddingLeft = '9px';
                         manualOption.innerHTML = `<span>➕ Add user by ID</span><span class="dropdown-item-type"><span class="type-badge" style="background: #fff3cd; color: #856404;">Manual ID</span></span>`;
-                        manualOption.onclick = () => selectUser(query, `User #${query}`);
+                        manualOption.onclick = () => selectUser(query, query, `User #${query}`);
                         dropdown.insertBefore(manualOption, firstChild);
                     }
                 }
@@ -1177,9 +1182,17 @@
                 let sourceLabel = user.source === 'database' ? ' (from timers)' : user.source === 'discord-fetch' ? ' (found on Discord)' : '';
                 let notInGuildLabel = user.notInGuild ? ' ⚠️ Not in guild' : '';
                 
+                // Format display: [username] displayName
+                const username = user.name || user.id;
+                const displayName = user.displayName || user.name || user.id;
+                let userDisplay = username;
+                if (displayName !== username && displayName) {
+                    userDisplay = `[${username}] ${displayName}`;
+                }
+                
                 dropdown.innerHTML = `
-                    <div class="dropdown-item" onclick="selectUser('${user.id}', '${user.displayName.replace(/'/g, "\\'")}')">
-                        <span>${user.displayName}${sourceLabel}${notInGuildLabel}</span>
+                    <div class="dropdown-item" onclick="selectUser('${user.id}', '${username.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}')">
+                        <span>${userDisplay}${sourceLabel}${notInGuildLabel}</span>
                         <span class="dropdown-item-type"><span class="type-badge">${statusEmoji} ${user.status || 'offline'}</span></span>
                     </div>
                 `;
@@ -1208,8 +1221,9 @@
             // Filter users based on query
             const filtered = uniqueUsers.filter(user => {
                 const displayName = (user.displayName || user.name || '').toLowerCase();
+                const username = (user.name || '').toLowerCase();
                 const userId = user.id.toLowerCase();
-                return displayName.includes(query) || userId.includes(query);
+                return displayName.includes(query) || username.includes(query) || userId.includes(query);
             });
             
             if (filtered.length === 0) {
@@ -1233,16 +1247,26 @@
                 const sourceLabel = user.source === 'database' ? ' (from timers)' : '';
                 const typeBadge = `<span class="type-badge ${user.status || 'offline'}">${statusEmoji} ${user.status || 'offline'}</span>`;
                 
+                // Show both username and display name
+                const username = user.name || user.id;
+                const displayName = user.displayName || user.name || user.id;
+                let userDisplay = username;
+                
+                // If display name is different from username, show both
+                if (displayName !== username && displayName) {
+                    userDisplay = `[${username}] ${displayName}`;
+                }
+                
                 return `
-                    <div class="dropdown-item" onclick="selectUser('${user.id}', '${(user.displayName || user.name).replace(/'/g, "\\'")}')">
-                        <span>${user.displayName || user.name}${sourceLabel}</span>
+                    <div class="dropdown-item" onclick="selectUser('${user.id}', '${username.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}')">
+                        <span>${userDisplay}${sourceLabel}</span>
                         <span class="dropdown-item-type">${typeBadge}</span>
                     </div>
                 `;
             }).join('');
         }
         
-        function selectUser(userId, displayName) {
+        function selectUser(userId, username, displayName) {
             const searchInput = document.getElementById('newUserSearch');
             const hiddenInput = document.getElementById('newUser');
             const dropdown = document.getElementById('newUserList');
@@ -1253,7 +1277,12 @@
                 if (/^\d{18,20}$/.test(userId)) {
                     searchInput.value = `ID: ${userId}`;
                 } else {
-                    searchInput.value = displayName;
+                    // Show both username and display name if they're different
+                    if (displayName && displayName !== username) {
+                        searchInput.value = `[${username}] ${displayName}`;
+                    } else {
+                        searchInput.value = username || displayName;
+                    }
                 }
             }
             dropdown.classList.remove('active');
@@ -1997,9 +2026,38 @@
             }
         }
 
+        async function loadMemberCount() {
+            try {
+                const guildId = new URLSearchParams(window.location.search).get('guildId');
+                if (!guildId) return;
+                
+                const response = await fetch(`/api/guild-member-count?guildId=${guildId}`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                // Display member count badge
+                const badge = document.getElementById('memberCountBadge');
+                const count = document.getElementById('memberCount');
+                
+                if (badge && count) {
+                    count.textContent = data.memberCount;
+                    badge.style.display = 'inline-block';
+                    console.log(`[Member Count] ${data.memberCount} members cached for guild ${guildId}`);
+                }
+            } catch (err) {
+                console.error('Error loading member count:', err);
+                // Don't show error - UI will still work without count
+            }
+        }
+
         async function loadDashboardAndDropdowns() {
             await loadDashboard();
             await loadDropdownData();
+            await loadMemberCount();
         }
 
         // Fetch and display version dynamically
@@ -2024,9 +2082,11 @@
                 loadVersion(); // Load version info
                 await loadDashboard(); // Must load FIRST to get guildId
                 await loadDropdownData(); // Load after guildId is set
+                await loadMemberCount(); // Load member count from cache
                 initSearchableDropdown(); // Initialize the searchable dropdown
                 setInterval(loadDashboard, 30000);
                 setInterval(loadDropdownData, 60000); // Refresh dropdowns every minute
+                setInterval(loadMemberCount, 60 * 60 * 1000); // Refresh member count every hour (matches sync interval)
             }
         })();
     </script>

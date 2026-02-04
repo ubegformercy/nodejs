@@ -739,4 +739,31 @@ router.post('/api/search-user', requireAuth, async (req, res) => {
   }
 });
 
+// Get member count for a guild
+router.get('/api/guild-member-count', requireAuth, async (req, res) => {
+  try {
+    const { guildId } = req.query;
+    
+    if (!guildId) {
+      return res.status(400).json({ error: 'guildId required' });
+    }
+    
+    const result = await db.query(
+      'SELECT COUNT(*) as count FROM guild_members_cache WHERE guild_id = $1',
+      [guildId]
+    );
+    
+    const count = parseInt(result.rows[0].count);
+    
+    res.json({
+      guildId,
+      memberCount: count,
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error getting member count:', err);
+    res.status(500).json({ error: 'Failed to get member count', details: err.message });
+  }
+});
+
 module.exports = router;
