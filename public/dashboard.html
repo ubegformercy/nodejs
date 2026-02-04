@@ -977,7 +977,7 @@
                             <input type="hidden" id="newUser" required>
                         </div>
                         <div class="form-note" style="margin-top: 8px; font-size: 12px;">
-                            💡 Can't find the user? Paste their Discord ID (18-20 digit number) to add them anyway.
+                            💡 Can't find the user? Paste their Discord ID (18-20 digit number) or enter their username, then press <strong>Enter</strong> to search Discord.
                         </div>
                     </div>
                     <div class="form-group">
@@ -1115,12 +1115,72 @@
                 }
             });
             
+            // Handle Enter key for Advanced Search
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performAdvancedSearch(searchInput.value.trim());
+                }
+            });
+            
             // Close dropdown when clicking outside
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.searchable-dropdown-wrapper')) {
                     dropdown.classList.remove('active');
                 }
             });
+        }
+        
+        async function performAdvancedSearch(query) {
+            if (!query) return;
+            
+            const searchInput = document.getElementById('newUserSearch');
+            const dropdown = document.getElementById('newUserList');
+            
+            try {
+                // Show searching indicator
+                dropdown.innerHTML = '<div class="dropdown-item" style="text-align: center; color: #999;">🔍 Searching...</div>';
+                dropdown.classList.add('active');
+                
+                const guildId = new URLSearchParams(window.location.search).get('guildId');
+                const response = await fetch('/api/search-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, guildId })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    dropdown.innerHTML = `<div class="dropdown-item" style="color: #e74c3c; padding: 12px;">❌ ${error.error || 'User not found'}</div>`;
+                    return;
+                }
+                
+                const user = await response.json();
+                
+                // Check if user is already in the list
+                const isInList = allUsers.some(u => u.id === user.id);
+                
+                let statusEmoji = {
+                    'online': '🟢',
+                    'idle': '🟡',
+                    'dnd': '🔴',
+                    'offline': '⚪'
+                }[user.status] || '⚪';
+                
+                let sourceLabel = user.source === 'database' ? ' (from timers)' : user.source === 'discord-fetch' ? ' (found on Discord)' : '';
+                let notInGuildLabel = user.notInGuild ? ' ⚠️ Not in guild' : '';
+                
+                dropdown.innerHTML = `
+                    <div class="dropdown-item" onclick="selectUser('${user.id}', '${user.displayName.replace(/'/g, "\\'")}')">
+                        <span>${user.displayName}${sourceLabel}${notInGuildLabel}</span>
+                        <span class="dropdown-item-type"><span class="type-badge">${statusEmoji} ${user.status || 'offline'}</span></span>
+                    </div>
+                `;
+                
+            } catch (err) {
+                console.error('Advanced search error:', err);
+                dropdown.innerHTML = '<div class="dropdown-item" style="color: #e74c3c; padding: 12px;">❌ Search failed - please try again</div>';
+            }
         }
         
         function renderDropdownOptions(users, query) {

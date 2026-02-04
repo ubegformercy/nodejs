@@ -599,4 +599,112 @@ router.get('/api/dropdown-data', requireAuth, requireGuildAccess, async (req, re
   }
 });
 
+// Advanced Search - Search for user by ID or username
+router.post('/api/search-user', requireAuth, async (req, res) => {
+  try {
+    const { query: searchQuery, guildId } = req.body;
+
+    if (!searchQuery || !guildId) {
+      return res.status(400).json({ error: 'Search query and guildId required' });
+    }
+
+    const client = req.app.get('discord-client');
+    if (!client) {
+      return res.status(500).json({ error: 'Discord client not available' });
+    }
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      return res.status(400).json({ error: 'Guild not found' });
+    }
+
+    let user = null;
+    let foundUser = null;
+
+    // Check if it's a Discord ID (18-20 digits)
+    if (/^\d{18,20}$/.test(searchQuery)) {
+      try {
+        // Try to fetch from Discord API
+        user = await client.users.fetch(searchQuery);
+      } catch (err) {
+        return res.status(404).json({ error: 'User not found in Discord' });
+      }
+
+      // Check if user is in the guild
+      try {
+        const guildMember = await guild.members.fetch(searchQuery);
+        foundUser = {
+          id: guildMember.user.id,
+          name: guildMember.user.username,
+          displayName: guildMember.displayName || guildMember.user.username,
+          isBot: guildMember.user.bot,
+          status: guildMember.user.presence?.status || 'offline',
+          source: 'discord-fetch'
+        };
+      } catch (err) {
+        // User exists in Discord but not in this guild
+        foundUser = {
+          id: user.id,
+          name: user.username,
+          displayName: user.username,
+          isBot: user.bot,
+          status: 'offline',
+          source: 'discord-fetch',
+          notInGuild: true
+        };
+      }
+    } else {
+      // Search by username in guild cache first
+      const members = Array.from(guild.members.cache.values());
+      const match = members.find(m => 
+        m.user.username.toLowerCase() === searchQuery.toLowerCase() ||
+        m.displayName.toLowerCase() === searchQuery.toLowerCase() ||
+        m.user.username.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      if (match) {
+        foundUser = {
+          id: match.user.id,
+          name: match.user.username,
+          displayName: match.displayName || match.user.username,
+          isBot: match.user.bot,
+          status: match.user.presence?.status || 'offline',
+          source: 'cache'
+        };
+      } else {
+        // Try to search in database
+        try {
+          const dbResult = await db.query(
+            `SELECT DISTINCT user_id, user_name FROM role_timers WHERE guild_id = $1 AND (user_name ILIKE $2 OR user_id = $3)`,
+            [guildId, `%${searchQuery}%`, searchQuery]
+          );
+
+          if (dbResult.rows.length > 0) {
+            const row = dbResult.rows[0];
+            foundUser = {
+              id: row.user_id,
+              name: row.user_name || row.user_id,
+              displayName: row.user_name || row.user_id,
+              isBot: false,
+              status: 'offline',
+              source: 'database'
+            };
+          }
+        } catch (dbErr) {
+          console.warn('Database search error:', dbErr.message);
+        }
+      }
+    }
+
+    if (!foundUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(foundUser);
+  } catch (err) {
+    console.error('Error searching user:', err);
+    res.status(500).json({ error: 'Search failed', details: err.message });
+  }
+});
+
 module.exports = router;

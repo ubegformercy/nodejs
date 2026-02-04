@@ -574,9 +574,15 @@ async function closePool() {
   console.log("Database connection pool closed");
 }
 
+// Generic query function for direct database access
+async function query(text, params) {
+  return pool.query(text, params);
+}
+
 module.exports = {
   pool,
   initDatabase,
+  query,
   getTimerForRole,
   getTimersForUser,
   getTimersForRole,
