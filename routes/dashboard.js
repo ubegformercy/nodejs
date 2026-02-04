@@ -504,37 +504,58 @@ router.get('/api/dropdown-data', requireAuth, requireGuildAccess, async (req, re
     // Get users from guild member cache (avoid timeout issues with large guilds)
     try {
       if (guild) {
-        // Use cache directly to avoid GuildMembersTimeout errors
-        // For dropdown, cached members are sufficient - they're typically active users
-        data.users = Array.from(guild.members.cache.values())
+        // Build a map of cached members for quick lookup
+        const cachedUsersMap = new Map();
+        
+        Array.from(guild.members.cache.values())
           .filter(m => !m.user.bot) // Exclude bots
-          .map(m => {
-            // Determine user type/status
-            let userType = 'member';
-            if (m.user.bot) {
-              userType = 'bot';
-            } else if (m.roles.highest.id === guild.id) {
-              userType = 'member'; // No special role
-            } else {
-              userType = 'member'; // Regular member with roles
-            }
-            
-            return {
+          .forEach(m => {
+            cachedUsersMap.set(m.user.id, {
               id: m.user.id,
               name: m.user.username,
               displayName: m.displayName || m.user.username,
-              userType: userType,
+              userType: 'member',
               status: m.user.presence?.status || 'offline',
-              isBot: m.user.bot || false
-            };
-          })
+              isBot: false,
+              source: 'cache'
+            });
+          });
+        
+        // Also fetch users from database who have active timers (they might not be in cache)
+        try {
+          const timerUsers = await db.query(
+            `SELECT DISTINCT user_id, user_name FROM role_timers WHERE guild_id = $1`,
+            [guildId]
+          );
+          
+          timerUsers.rows.forEach(row => {
+            // Only add if not already in cache (to avoid duplicates)
+            if (!cachedUsersMap.has(row.user_id)) {
+              cachedUsersMap.set(row.user_id, {
+                id: row.user_id,
+                name: row.user_name || row.user_id,
+                displayName: row.user_name || row.user_id,
+                userType: 'member',
+                status: 'offline',
+                isBot: false,
+                source: 'database'
+              });
+            }
+          });
+        } catch (dbErr) {
+          console.warn('Could not fetch users from database:', dbErr.message);
+          // Continue with cached users only
+        }
+        
+        // Convert map to array and sort
+        data.users = Array.from(cachedUsersMap.values())
           .sort((a, b) => a.displayName.localeCompare(b.displayName));
         
-        console.log(`[Dropdown] Using cached members: ${data.users.length} users available`);
+        console.log(`[Dropdown] Loaded ${data.users.length} users (${cachedUsersMap.size} total, cache + database)`);
       }
     } catch (err) {
-      console.error('Error processing guild members cache:', err);
-      // Fallback to empty array if cache processing fails
+      console.error('Error processing guild members:', err);
+      // Fallback to empty array if processing fails
       data.users = [];
     }
 

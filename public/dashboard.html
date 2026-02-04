@@ -838,6 +838,15 @@
             padding-left: 9px;
         }
 
+        .dropdown-item.manual-id-option {
+            font-weight: 600;
+            background: #fff9e6 !important;
+        }
+
+        .dropdown-item.manual-id-option:hover {
+            background: #fff3cd !important;
+        }
+
         .dropdown-item-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -961,11 +970,14 @@
                 <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Timer Entry</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="newUserSearch">Select User</label>
+                        <label for="newUserSearch">Select User <span style="color: #999; font-size: 12px;">(or enter Discord ID)</span></label>
                         <div class="searchable-dropdown-wrapper">
-                            <input type="text" id="newUserSearch" class="dropdown-search-input" placeholder="🔍 Search users..." autocomplete="off">
+                            <input type="text" id="newUserSearch" class="dropdown-search-input" placeholder="🔍 Search users or paste Discord ID..." autocomplete="off">
                             <div class="dropdown-list" id="newUserList"></div>
                             <input type="hidden" id="newUser" required>
+                        </div>
+                        <div class="form-note" style="margin-top: 8px; font-size: 12px;">
+                            💡 Can't find the user? Paste their Discord ID (18-20 digit number) to add them anyway.
                         </div>
                     </div>
                     <div class="form-group">
@@ -1078,9 +1090,27 @@
             
             // Filter on input
             searchInput.addEventListener('input', (e) => {
-                const query = e.target.value.toLowerCase();
+                const query = e.target.value.toLowerCase().trim();
                 renderDropdownOptions(allUsers, query);
-                if (allUsers.length > 0) {
+                
+                // Check if query looks like a Discord ID (18-20 digits)
+                if (/^\d{18,20}$/.test(query)) {
+                    // Add manual ID option at the top
+                    const dropdown = document.getElementById('newUserList');
+                    const firstChild = dropdown.firstChild;
+                    if (firstChild && !firstChild.classList.contains('manual-id-option')) {
+                        const manualOption = document.createElement('div');
+                        manualOption.className = 'dropdown-item manual-id-option';
+                        manualOption.style.backgroundColor = '#e8f0ff';
+                        manualOption.style.borderLeft = '3px solid #667eea';
+                        manualOption.style.paddingLeft = '9px';
+                        manualOption.innerHTML = `<span>➕ Add user by ID</span><span class="dropdown-item-type"><span class="type-badge" style="background: #fff3cd; color: #856404;">Manual ID</span></span>`;
+                        manualOption.onclick = () => selectUser(query, `User #${query}`);
+                        dropdown.insertBefore(manualOption, firstChild);
+                    }
+                }
+                
+                if (allUsers.length > 0 || /^\d{18,20}$/.test(query)) {
                     dropdown.classList.add('active');
                 }
             });
@@ -1099,14 +1129,29 @@
             
             if (!dropdown) return;
             
+            // Deduplicate users by ID before filtering
+            const userMap = new Map();
+            users.forEach(user => {
+                if (!userMap.has(user.id)) {
+                    userMap.set(user.id, user);
+                }
+            });
+            const uniqueUsers = Array.from(userMap.values());
+            
             // Filter users based on query
-            const filtered = users.filter(user => {
+            const filtered = uniqueUsers.filter(user => {
                 const displayName = (user.displayName || user.name || '').toLowerCase();
-                return displayName.includes(query);
+                const userId = user.id.toLowerCase();
+                return displayName.includes(query) || userId.includes(query);
             });
             
             if (filtered.length === 0) {
-                dropdown.innerHTML = '<div class="dropdown-no-results">No users found</div>';
+                // Check if query is a valid Discord ID
+                if (/^\d{18,20}$/.test(query.trim())) {
+                    dropdown.innerHTML = ''; // Will show manual ID option separately
+                } else {
+                    dropdown.innerHTML = '<div class="dropdown-no-results">No users found</div>';
+                }
                 return;
             }
             
@@ -1118,11 +1163,12 @@
                     'offline': '⚪'
                 }[user.status] || '⚪';
                 
+                const sourceLabel = user.source === 'database' ? ' (from timers)' : '';
                 const typeBadge = `<span class="type-badge ${user.status || 'offline'}">${statusEmoji} ${user.status || 'offline'}</span>`;
                 
                 return `
                     <div class="dropdown-item" onclick="selectUser('${user.id}', '${(user.displayName || user.name).replace(/'/g, "\\'")}')">
-                        <span>${user.displayName || user.name}</span>
+                        <span>${user.displayName || user.name}${sourceLabel}</span>
                         <span class="dropdown-item-type">${typeBadge}</span>
                     </div>
                 `;
@@ -1135,7 +1181,14 @@
             const dropdown = document.getElementById('newUserList');
             
             if (hiddenInput) hiddenInput.value = userId;
-            if (searchInput) searchInput.value = displayName;
+            if (searchInput) {
+                // If it's a manual ID, show just the ID
+                if (/^\d{18,20}$/.test(userId)) {
+                    searchInput.value = `ID: ${userId}`;
+                } else {
+                    searchInput.value = displayName;
+                }
+            }
             dropdown.classList.remove('active');
         }
 
@@ -1815,12 +1868,20 @@
                 
                 // Store users in global array for searchable dropdown
                 if (data.users && data.users.length > 0) {
-                    allUsers = data.users.sort((a, b) => {
+                    // Deduplicate by user ID (just in case)
+                    const userMap = new Map();
+                    data.users.forEach(user => {
+                        if (!userMap.has(user.id)) {
+                            userMap.set(user.id, user);
+                        }
+                    });
+                    
+                    allUsers = Array.from(userMap.values()).sort((a, b) => {
                         const aName = (a.displayName || a.name || '').toLowerCase();
                         const bName = (b.displayName || b.name || '').toLowerCase();
                         return aName.localeCompare(bName);
                     });
-                    console.log(`[Searchable Dropdown] Loaded ${allUsers.length} users`);
+                    console.log(`[Searchable Dropdown] Loaded ${allUsers.length} unique users (deduped from ${data.users.length})`);
                 } else {
                     allUsers = [];
                     console.warn('[Searchable Dropdown] No users found');
