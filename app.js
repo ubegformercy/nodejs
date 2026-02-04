@@ -168,8 +168,13 @@ function clearRoleTimer(userId, roleId) {
 // SECTION 5 — Discord Client + Slash Command Registration
 //----------------------------------------
 
+// NOTE: GUILD_MEMBERS intent is required for the dashboard user dropdown to work.
+// This intent MUST be enabled in the Discord Developer Portal:
+// 1. Go to: https://discord.com/developers/applications/{CLIENT_ID}/bot
+// 2. Enable "Server Members Intent" under PRIVILEGED GATEWAY INTENTS
+// Without this intent, guild members won't be cached and the dropdown will show no users.
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 // Expose client globally for dashboard API
