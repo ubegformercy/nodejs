@@ -1894,8 +1894,8 @@
             const isAuth = await checkAuth();
             if (isAuth) {
                 loadVersion(); // Load version info
-                loadDashboard();
-                await loadDropdownData();
+                await loadDashboard(); // Must load FIRST to get guildId
+                await loadDropdownData(); // Load after guildId is set
                 initSearchableDropdown(); // Initialize the searchable dropdown
                 setInterval(loadDashboard, 30000);
                 setInterval(loadDropdownData, 60000); // Refresh dropdowns every minute
