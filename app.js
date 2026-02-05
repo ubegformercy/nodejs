@@ -449,6 +449,53 @@ client.once("ready", async () => {
       : Routes.applicationCommands(CLIENT_ID);
 
     const routeType = GUILD_ID ? `guild (${GUILD_ID})` : "global (all servers)";
+    console.log(`🔄 Cleaning up old commands...`);
+    
+    // First, fetch all existing commands and delete any duplicates or old versions
+    try {
+      const existingCommands = await rest.get(commandRoute);
+      
+      if (existingCommands && Array.isArray(existingCommands)) {
+        console.log(`Found ${existingCommands.length} existing commands`);
+        
+        // Create a map of command names we want to keep
+        const desiredCommandNames = new Set(commands.map(c => c.name));
+        
+        // Find duplicates and old commands to delete
+        const commandMap = new Map();
+        const toDelete = [];
+        
+        existingCommands.forEach(cmd => {
+          if (desiredCommandNames.has(cmd.name)) {
+            if (commandMap.has(cmd.name)) {
+              // Duplicate found - mark for deletion
+              toDelete.push(cmd.id);
+            } else {
+              commandMap.set(cmd.name, cmd.id);
+            }
+          } else {
+            // Command not in our desired list - mark for deletion
+            toDelete.push(cmd.id);
+          }
+        });
+        
+        // Delete duplicates and unwanted commands
+        if (toDelete.length > 0) {
+          console.log(`🗑️  Deleting ${toDelete.length} duplicate/old commands...`);
+          for (const cmdId of toDelete) {
+            try {
+              await rest.delete(`${commandRoute}/${cmdId}`);
+            } catch (err) {
+              console.warn(`Failed to delete command ${cmdId}:`, err.message);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`Could not clean up old commands: ${err.message}`);
+      // Continue anyway - the put will overwrite
+    }
+    
     console.log(`🔄 Registering ${commands.length} commands as: ${routeType}`);
     
     if (!GUILD_ID) {
