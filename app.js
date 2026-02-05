@@ -1178,8 +1178,127 @@ if (interaction.commandName === "removetime") {
       // Defer immediately to prevent interaction timeout
       await interaction.deferReply().catch(() => null);
 
-      const targetUser = interaction.options.getUser("user") ?? interaction.user;
-      const role = interaction.options.getRole("role"); // optional
+      const userOption = interaction.options.getUser("user"); // nullable
+      const roleOption = interaction.options.getRole("role"); // nullable
+
+      // If only role is provided (no user), show all users with that role (like /rolestatus view)
+      if (roleOption && !userOption) {
+        if (!interaction.guild) {
+          return interaction.editReply({ content: "This command can only be used in a server." });
+        }
+
+        const guild = interaction.guild;
+        const timersFromDb = await db.getTimersForRole(roleOption.id).catch(() => []);
+        
+        if (timersFromDb.length === 0) {
+          const embed = new EmbedBuilder()
+            .setColor(0x95A5A6) // grey
+            .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+            .setTitle("Role Status")
+            .setTimestamp(new Date())
+            .addFields(
+              { name: "Role", value: `${roleOption.name}`, inline: true },
+              { name: "Members", value: "0", inline: true },
+              { name: "Status", value: "No members have timers for this role", inline: false }
+            )
+            .setFooter({ text: "BoostMon • Role Status" });
+          return interaction.editReply({ embeds: [embed] });
+        }
+
+        // Fetch only the members that have timers for this role
+        const timersList = [];
+        for (const timer of timersFromDb) {
+          try {
+            const member = await guild.members.fetch(timer.user_id).catch(() => null);
+            if (member) {
+              timersList.push({ member, timer });
+            }
+          } catch (err) {
+            console.error(`Failed to fetch member ${timer.user_id}:`, err);
+          }
+        }
+
+        // If no members found, they may have left the server
+        if (timersList.length === 0) {
+          const embed = new EmbedBuilder()
+            .setColor(0x95A5A6) // grey
+            .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+            .setTitle("Role Status")
+            .setTimestamp(new Date())
+            .addFields(
+              { name: "Role", value: `${roleOption.name}`, inline: true },
+              { name: "Members", value: "0", inline: true },
+              { name: "Status", value: "Members with timers have left the server", inline: false }
+            )
+            .setFooter({ text: "BoostMon • Role Status" });
+          return interaction.editReply({ embeds: [embed] });
+        }
+
+        // Sort by time remaining (ascending - expires soonest first)
+        timersList.sort((a, b) => {
+          let aMs = Number(a.timer.expires_at) - Date.now();
+          let bMs = Number(b.timer.expires_at) - Date.now();
+          
+          if (a.timer.paused && a.timer.paused_remaining_ms) {
+            aMs = Number(a.timer.paused_remaining_ms);
+          }
+          if (b.timer.paused && b.timer.paused_remaining_ms) {
+            bMs = Number(b.timer.paused_remaining_ms);
+          }
+          
+          return aMs - bMs;
+        });
+
+        // Build field list
+        const fields = [];
+        let totalMembers = 0;
+        let activeMembers = 0;
+        let pausedMembers = 0;
+
+        for (const { member, timer } of timersList) {
+          totalMembers++;
+          const isPaused = timer.paused;
+          if (isPaused) pausedMembers++;
+          else activeMembers++;
+
+          let remainingMs = Number(timer.expires_at) - Date.now();
+          if (isPaused && timer.paused_remaining_ms) {
+            remainingMs = Number(timer.paused_remaining_ms);
+          }
+
+          const status = isPaused ? "⏸️ PAUSED" : remainingMs <= 0 ? "🔴 EXPIRED" : "🟢 ACTIVE";
+          const timeText = remainingMs > 0 ? formatMs(remainingMs) : "0s";
+          
+          // Limit to 20 members per embed (leave room for summary field)
+          if (fields.length < 20) {
+            fields.push({
+              name: `${member.user.username}`,
+              value: `${status} • ${timeText}`,
+              inline: false
+            });
+          }
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2ECC71) // green
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle(`${roleOption.name} - Status Report`)
+          .setTimestamp(new Date())
+          .addFields(...fields)
+          .addFields(
+            { name: "━━━━━━━━━━━━━━━", value: "Summary", inline: false },
+            { name: "Total Members", value: `${totalMembers}`, inline: true },
+            { name: "Active ⏱️", value: `${activeMembers}`, inline: true },
+            { name: "Paused ⏸️", value: `${pausedMembers}`, inline: true }
+          )
+          .setFooter({ text: `BoostMon • Showing ${Math.min(timersList.length, 20)} members` });
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      // If user is provided (with or without role), show that user's timer(s)
+      const targetUser = userOption ?? interaction.user;
+      const role = roleOption; // optional
 
       if (role) {
         const timer = await db.getTimerForRole(targetUser.id, role.id);
