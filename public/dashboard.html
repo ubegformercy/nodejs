@@ -2567,8 +2567,11 @@
             if (isAuth) {
                 loadVersion(); // Load version info
                 await loadDashboard(); // Must load FIRST to get guildId
-                await loadDropdownData(); // Load after guildId is set
-                await loadMemberCount(); // Load member count from cache
+                // Load dropdowns and member count in PARALLEL after guildId is set
+                await Promise.all([
+                    loadDropdownData(),
+                    loadMemberCount()
+                ]);
                 initSearchableDropdown(); // Initialize the searchable dropdown
                 setInterval(loadDashboard, 30000);
                 setInterval(loadDropdownData, 60000); // Refresh dropdowns every minute
