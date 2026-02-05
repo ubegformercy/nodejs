@@ -987,7 +987,7 @@
                     </div>
                     <div class="form-group">
                         <label for="newMinutes">Minutes</label>
-                        <input type="number" id="newMinutes" placeholder="30" min="1" max="10080" required>
+                        <input type="number" id="newMinutes" placeholder="30" min="1" required>
                     </div>
                     <div class="form-group">
                         <label for="newChannel">Select Warning Channel (Optional)</label>
@@ -1665,11 +1665,6 @@
             
             if (minutes <= 0) {
                 showAlert('Minutes must be greater than 0', 'error');
-                return;
-            }
-            
-            if (minutes > 10080) {
-                showAlert('Minutes cannot exceed 10080 (7 days)', 'error');
                 return;
             }
 
