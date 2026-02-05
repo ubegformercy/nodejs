@@ -469,26 +469,29 @@ client.once("ready", async () => {
           if (desiredCommandNames.has(cmd.name)) {
             if (commandMap.has(cmd.name)) {
               // Duplicate found - mark for deletion
-              toDelete.push(cmd.id);
+              toDelete.push({ id: cmd.id, name: cmd.name });
             } else {
               commandMap.set(cmd.name, cmd.id);
             }
           } else {
             // Command not in our desired list - mark for deletion
-            toDelete.push(cmd.id);
+            toDelete.push({ id: cmd.id, name: cmd.name });
           }
         });
         
         // Delete duplicates and unwanted commands
         if (toDelete.length > 0) {
           console.log(`🗑️  Deleting ${toDelete.length} duplicate/old commands...`);
-          for (const cmdId of toDelete) {
+          for (const cmd of toDelete) {
             try {
-              await rest.delete(`${commandRoute}/${cmdId}`);
+              await rest.delete(`${commandRoute}/${cmd.id}`);
+              console.log(`   ✓ Deleted /${cmd.name} (ID: ${cmd.id})`);
             } catch (err) {
-              console.warn(`Failed to delete command ${cmdId}:`, err.message);
+              console.warn(`   ✗ Failed to delete /${cmd.name}: ${err.message}`);
             }
           }
+        } else {
+          console.log(`✓ No duplicates found`);
         }
       }
     } catch (err) {

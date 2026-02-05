@@ -994,15 +994,35 @@ router.post('/api/autopurge/add', requireAuth, requireGuildAccess, async (req, r
       });
     }
 
-    // Check if autopurge already exists for this channel
+    // Check if autopurge already exists and is enabled for this channel
     const existing = await db.pool.query(
-      `SELECT id FROM autopurge_settings WHERE guild_id = $1 AND channel_id = $2`,
+      `SELECT id, enabled FROM autopurge_settings WHERE guild_id = $1 AND channel_id = $2`,
       [guildId, channelId]
     );
 
     if (existing.rows.length > 0) {
-      return res.status(409).json({
-        error: 'An auto-purge setting already exists for this channel'
+      const setting = existing.rows[0];
+      
+      // If it exists and is enabled, reject
+      if (setting.enabled) {
+        return res.status(409).json({
+          error: 'An auto-purge setting already exists for this channel'
+        });
+      }
+      
+      // If it exists but is disabled, update it instead of creating new
+      const result = await db.pool.query(
+        `UPDATE autopurge_settings 
+         SET type = $1, lines = $2, interval_seconds = $3, enabled = true, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4
+         RETURNING *`,
+        [type, lines, intervalMinutes * 60, setting.id]
+      );
+
+      return res.json({
+        success: true,
+        setting: result.rows[0],
+        message: 'Auto-purge setting re-enabled successfully'
       });
     }
 
