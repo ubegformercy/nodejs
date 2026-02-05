@@ -456,6 +456,17 @@ client.once("ready", async () => {
         s
           .setName("list")
           .setDescription("List all roles with dashboard access")
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("restrict")
+          .setDescription("Enable restrict mode and whitelist a role for dashboard access")
+          .addRoleOption((o) => o.setName("role").setDescription("Role to whitelist").setRequired(true))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("unrestrict")
+          .setDescription("Disable restrict mode and revert to normal access")
       ),
   ].map((c) => c.toJSON());
 
@@ -1778,6 +1789,7 @@ if (interaction.commandName === "removetime") {
 
       if (subcommand === "list") {
         const accessRoles = await db.getDashboardAccessRoles(guild.id);
+        const restrictMode = await db.isRestrictModeActive(guild.id);
 
         if (accessRoles.length === 0) {
           const embed = new EmbedBuilder()
@@ -1785,6 +1797,11 @@ if (interaction.commandName === "removetime") {
             .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
             .setTitle("Dashboard Access Roles")
             .setTimestamp(new Date())
+            .addFields({
+              name: "Mode",
+              value: restrictMode ? "🔒 **RESTRICTED** - Only whitelisted roles have access" : "🔓 **NORMAL** - Owner + Admins + granted roles",
+              inline: false
+            })
             .addFields({
               name: "Status",
               value: "**Default Access:** Server Owner + Admins only\n**Custom Roles:** None configured",
@@ -1814,9 +1831,69 @@ if (interaction.commandName === "removetime") {
           .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
           .setTitle("Dashboard Access Roles")
           .setTimestamp(new Date())
-          .addFields({ name: "Default Access", value: "Server Owner + Admins (always have access)", inline: false })
+          .addFields({ 
+            name: "Mode", 
+            value: restrictMode ? "🔒 **RESTRICTED** - Only whitelisted roles have access" : "🔓 **NORMAL** - Owner + Admins + granted roles", 
+            inline: false 
+          })
+          .addFields({ name: "Default Access", value: "Server Owner (always have access)", inline: false })
           .addFields(...fields)
-          .addFields({ name: "Total Custom Roles", value: `${accessRoles.length}`, inline: false })
+          .addFields({ name: "Total Whitelisted Roles", value: `${accessRoles.length}`, inline: false })
+          .setFooter({ text: "BoostMon • Setup" });
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      if (subcommand === "restrict") {
+        if (!role) {
+          return interaction.editReply({ content: "Please specify a role to whitelist." });
+        }
+
+        // Enable restrict mode and add the role to whitelist
+        const result = await db.setDashboardRestrictMode(guild.id, role.id, interaction.user.id);
+        
+        if (!result) {
+          return interaction.editReply({
+            content: `⚠️ Failed to enable restrict mode`
+          });
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0xF39C12)
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle("🔒 Restrict Mode Enabled")
+          .setTimestamp(new Date())
+          .addFields(
+            { name: "Mode", value: "**RESTRICTED** - Only whitelisted roles have dashboard access", inline: false },
+            { name: "Whitelisted Role", value: `${role}`, inline: true },
+            { name: "Enabled By", value: `${interaction.user}`, inline: true },
+            { name: "Note", value: "Server Owner always has access. All other users need a whitelisted role.", inline: false }
+          )
+          .setFooter({ text: "BoostMon • Setup" });
+
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      if (subcommand === "unrestrict") {
+        // Disable restrict mode
+        const result = await db.removeDashboardRestrictMode(guild.id);
+        
+        if (!result) {
+          return interaction.editReply({
+            content: `⚠️ Failed to disable restrict mode`
+          });
+        }
+
+        const embed = new EmbedBuilder()
+          .setColor(0x27AE60)
+          .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+          .setTitle("🔓 Restrict Mode Disabled")
+          .setTimestamp(new Date())
+          .addFields(
+            { name: "Mode", value: "**NORMAL** - Admins and granted roles have access", inline: false },
+            { name: "Disabled By", value: `${interaction.user}`, inline: true },
+            { name: "Note", value: "Server Owner + Admins automatically have access. Custom granted roles also have access.", inline: false }
+          )
           .setFooter({ text: "BoostMon • Setup" });
 
         return interaction.editReply({ embeds: [embed] });

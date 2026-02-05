@@ -134,6 +134,18 @@ async function initDatabase() {
       }
     }
 
+    // Add dashboard_access_mode to track restrict vs normal mode
+    try {
+      await client.query(`
+        ALTER TABLE dashboard_access 
+        ADD COLUMN IF NOT EXISTS mode VARCHAR(50) DEFAULT 'normal';
+      `);
+    } catch (err) {
+      if (!err.message.includes("already exists")) {
+        console.warn("Migration info:", err.message);
+      }
+    }
+
     console.log("✓ Database schema initialized");
 
     // Create performance indexes for scale
@@ -724,29 +736,111 @@ async function getDashboardAccessRoles(guildId) {
 
 async function hasDashboardAccess(guildId, member) {
   try {
-    // Owner always has access
     const guild = global.botClient?.guilds?.cache?.get(guildId);
+    
+    // Owner always has access (cannot be restricted)
     if (guild && guild.ownerId === member.id) {
       return true;
     }
 
-    // Admin always has access
-    if (member.permissions?.has('Administrator')) {
-      return true;
-    }
-
-    // Check if any of the member's roles have dashboard access
-    const accessRoles = await getDashboardAccessRoles(guildId);
-    if (accessRoles.length === 0) {
-      return false; // No roles have access, only owner/admin
-    }
-
-    const allowedRoleIds = new Set(accessRoles.map(r => r.role_id));
-    const memberRoleIds = member.roles?.cache?.keyArray?.() || [];
+    // Check if restrict mode is active
+    const restrictMode = await getDashboardAccessMode(guildId);
     
-    return memberRoleIds.some(roleId => allowedRoleIds.has(roleId));
+    if (restrictMode === 'restricted') {
+      // In restrict mode: only owner + whitelisted roles have access
+      // Admins do NOT have automatic access
+      const accessRoles = await getDashboardAccessRoles(guildId);
+      if (accessRoles.length === 0) {
+        return false; // No roles whitelisted, only owner
+      }
+
+      const allowedRoleIds = new Set(accessRoles.map(r => r.role_id));
+      const memberRoleIds = member.roles?.cache?.keyArray?.() || [];
+      
+      return memberRoleIds.some(roleId => allowedRoleIds.has(roleId));
+    } else {
+      // Normal mode: owner + admins + granted roles have access
+      // Admin always has access
+      if (member.permissions?.has('Administrator')) {
+        return true;
+      }
+
+      // Check if any of the member's roles have dashboard access
+      const accessRoles = await getDashboardAccessRoles(guildId);
+      if (accessRoles.length === 0) {
+        return false; // No roles have access, only owner/admin
+      }
+
+      const allowedRoleIds = new Set(accessRoles.map(r => r.role_id));
+      const memberRoleIds = member.roles?.cache?.keyArray?.() || [];
+      
+      return memberRoleIds.some(roleId => allowedRoleIds.has(roleId));
+    }
   } catch (err) {
     console.error('hasDashboardAccess error:', err);
+    return false;
+  }
+}
+
+async function getDashboardAccessMode(guildId) {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT mode FROM dashboard_access WHERE guild_id = $1 LIMIT 1`,
+      [guildId]
+    );
+    return result.rows[0]?.mode || 'normal';
+  } catch (err) {
+    console.error('getDashboardAccessMode error:', err);
+    return 'normal';
+  }
+}
+
+async function setDashboardRestrictMode(guildId, roleId, grantedBy = null) {
+  try {
+    // First, set all existing roles to mode='restricted'
+    await pool.query(
+      `UPDATE dashboard_access SET mode = 'restricted' WHERE guild_id = $1`,
+      [guildId]
+    );
+
+    // Then ensure the specified role is in the whitelist
+    const result = await pool.query(
+      `INSERT INTO dashboard_access (guild_id, role_id, created_by, mode) 
+       VALUES ($1, $2, $3, 'restricted')
+       ON CONFLICT (guild_id, role_id) DO UPDATE SET mode = 'restricted'
+       RETURNING *`,
+      [guildId, roleId, grantedBy]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error('setDashboardRestrictMode error:', err);
+    return null;
+  }
+}
+
+async function removeDashboardRestrictMode(guildId) {
+  try {
+    // Reset all roles back to mode='normal'
+    await pool.query(
+      `UPDATE dashboard_access SET mode = 'normal' WHERE guild_id = $1`,
+      [guildId]
+    );
+    return true;
+  } catch (err) {
+    console.error('removeDashboardRestrictMode error:', err);
+    return false;
+  }
+}
+
+async function isRestrictModeActive(guildId) {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count FROM dashboard_access WHERE guild_id = $1 AND mode = 'restricted'`,
+      [guildId]
+    );
+    return (result.rows[0]?.count || 0) > 0;
+  } catch (err) {
+    console.error('isRestrictModeActive error:', err);
     return false;
   }
 }
@@ -802,6 +896,10 @@ module.exports = {
   revokeDashboardAccess,
   getDashboardAccessRoles,
   hasDashboardAccess,
+  getDashboardAccessMode,
+  setDashboardRestrictMode,
+  removeDashboardRestrictMode,
+  isRestrictModeActive,
   
   closePool,
 };
