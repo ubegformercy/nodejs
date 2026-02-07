@@ -518,7 +518,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div class="status-badge" id="statusBadge">Loading...</div>
-                <a href="/dashboard.html" style="padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📈 Grid View</a>
+                <a href="#" onclick="navigateToDashboard1()" style="padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📈 Grid View</a>
                 <a href="/auth/logout" style="padding: 8px 16px; background: #f0f0f0; color: #333; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Logout</a>
             </div>
         </header>
@@ -556,8 +556,25 @@
             <div class="tabs-content">
                 <!-- TAB 1: ACTIVE TIMERS -->
                 <div class="tab-panel active" id="timers-tab">
-                    <div class="form-section">
-                        <h3>➕ Add New Timer</h3>
+                    <!-- ROLE FILTER SECTION -->
+                    <div class="form-section" style="margin-bottom: 20px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="roleFilter">🔍 Filter by Role:</label>
+                                <select id="roleFilter" onchange="onRoleSelected()" style="width: 100%;">
+                                    <option value="">-- Select a Role --</option>
+                                </select>
+                                <span class="role-info" id="roleInfo" style="margin-top: 8px; display: block; font-size: 12px; color: #666;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ADD NEW TIMER (Hidden until role selected) -->
+                    <div class="form-section" id="addTimerSection" style="display: none; margin-bottom: 20px;">
+                        <h3 style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 16px; color: #667eea;" onclick="toggleAddTimerForm()">
+                            <span>➕</span>
+                            <span>Add New Timer Entry</span>
+                        </h3>
                         <form id="addEntryForm" onsubmit="return handleAddTimer(event)">
                             <div class="form-row">
                                 <div class="form-group">
@@ -785,6 +802,72 @@
         let pendingAction = null;
         let allUsers = [];
         let debugLogs = [];
+        let allTimers = [];
+        let selectedRoleId = null;
+
+        // Get guildId from sessionStorage or URL
+        function getGuildId() {
+            const params = new URLSearchParams(window.location.search);
+            const urlGuildId = params.get('guildId');
+            
+            if (urlGuildId) {
+                sessionStorage.setItem('guildId', urlGuildId);
+                return urlGuildId;
+            }
+            
+            return sessionStorage.getItem('guildId');
+        }
+
+        function navigateToDashboard1() {
+            const guildId = getGuildId();
+            if (!guildId) {
+                alert('Guild ID not found. Please reload the page.');
+                return;
+            }
+            window.location.href = '/dashboard.html';
+        }
+
+        // ROLE FILTER AND FORM TOGGLING
+        function onRoleSelected() {
+            selectedRoleId = document.getElementById('roleFilter').value;
+            const addTimerSection = document.getElementById('addTimerSection');
+            const roleInfo = document.getElementById('roleInfo');
+            
+            if (selectedRoleId) {
+                // Show the add timer section when role is selected
+                addTimerSection.style.display = 'block';
+                
+                // Update role info
+                const roleSelect = document.getElementById('roleFilter');
+                const selectedRoleText = roleSelect.options[roleSelect.selectedIndex].text;
+                const timerCount = allTimers.filter(t => t.role_id === selectedRoleId).length;
+                roleInfo.textContent = `📊 ${timerCount} timer${timerCount !== 1 ? 's' : ''} active for this role`;
+            } else {
+                // Hide the add timer section when no role is selected
+                addTimerSection.style.display = 'none';
+                roleInfo.textContent = '';
+            }
+            
+            // Filter the timers table
+            filterTimersByRole();
+        }
+
+        function toggleAddTimerForm() {
+            const form = document.getElementById('addEntryForm');
+            const isHidden = form.style.display === 'none';
+            form.style.display = isHidden ? 'block' : 'none';
+        }
+
+        function filterTimersByRole() {
+            if (!selectedRoleId) {
+                const tbody = document.getElementById('timersList');
+                tbody.innerHTML = '<tr><td colspan="6" class="placeholder-state">Select a role to view timers</td></tr>';
+                return;
+            }
+
+            const filtered = allTimers.filter(t => t.role_id === selectedRoleId);
+            updateTimersTable(filtered);
+        }
 
         // TAB SWITCHING
         document.querySelectorAll('.tab-button').forEach(button => {
@@ -830,9 +913,9 @@
         // LOAD DASHBOARD DATA
         async function loadDashboard() {
             try {
-                const guildId = new URLSearchParams(window.location.search).get('guildId');
+                const guildId = getGuildId();
                 if (!guildId) {
-                    console.error('No guildId in URL');
+                    console.error('No guildId found');
                     return false;
                 }
 
@@ -849,23 +932,52 @@
                 const data = await response.json();
                 currentGuildId = guildId;
 
+                // Store timers for filtering
+                allTimers = data.timers || [];
+
                 // Update stats
                 document.getElementById('statusBadge').textContent = 'Online';
                 document.getElementById('statusBadge').classList.remove('offline');
-                document.getElementById('activeTimers').textContent = data.activeTimers || 0;
-                document.getElementById('scheduledReports').textContent = data.scheduledReports || 0;
-                document.getElementById('autopurgeCount').textContent = data.autopurgeCount || 0;
+                document.getElementById('activeTimers').textContent = data.stats?.activeTimers || 0;
+                document.getElementById('scheduledReports').textContent = data.stats?.scheduledReports || 0;
+                document.getElementById('autopurgeCount').textContent = data.stats?.autopurgeSettings || 0;
                 document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 
-                // Load tables if available
-                if (data.timers) await loadTimersTable(data.timers);
-                if (data.reports) await loadReportsTable(data.reports);
-                if (data.autopurge) await loadAutopurgeTable(data.autopurge);
+                // Populate role filter dropdown
+                populateRoleFilter(allTimers);
 
                 return true;
             } catch (err) {
                 console.error('Dashboard load error:', err);
                 return false;
+            }
+        }
+
+        function populateRoleFilter(timers) {
+            const roleSelect = document.getElementById('roleFilter');
+            const currentValue = roleSelect.value;
+
+            // Extract unique roles
+            const rolesMap = new Map();
+            timers.forEach(timer => {
+                if (!rolesMap.has(timer.role_id)) {
+                    rolesMap.set(timer.role_id, timer.role_name);
+                }
+            });
+
+            // Clear and repopulate
+            roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
+            Array.from(rolesMap.entries()).forEach(([roleId, roleName]) => {
+                const option = document.createElement('option');
+                option.value = roleId;
+                option.textContent = roleName;
+                roleSelect.appendChild(option);
+            });
+
+            // Restore previous selection if still available
+            if (currentValue && rolesMap.has(currentValue)) {
+                roleSelect.value = currentValue;
+                onRoleSelected();
             }
         }
 
@@ -1115,6 +1227,40 @@
                 setInterval(loadMemberCount, 60 * 60 * 1000);
             }
         })();
+
+        // UPDATE TIMERS TABLE
+        function updateTimersTable(timers) {
+            const tbody = document.getElementById('timersList');
+            
+            if (!timers || timers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="placeholder-state">No timers for this role</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = timers.map(timer => {
+                const now = Date.now();
+                const timeLeft = Math.max(0, timer.expires_at - now);
+                const hours = Math.floor(timeLeft / 3600000);
+                const minutes = Math.floor((timeLeft % 3600000) / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+
+                const status = timer.paused ? '⏸️ Paused' : timeLeft <= 0 ? '🔴 Expired' : '🟢 Active';
+                const expiresDate = new Date(timer.expires_at).toLocaleString();
+
+                return `
+                    <tr>
+                        <td><strong>${timer.username || 'Unknown'}</strong></td>
+                        <td>${timer.role_name || 'Unknown'}</td>
+                        <td>${hours}h ${minutes}m ${seconds}s</td>
+                        <td>${expiresDate}</td>
+                        <td>${status}</td>
+                        <td>
+                            <button class="btn btn-danger" onclick="deleteTimer('${timer.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
     </script>
 </body>
 </html>

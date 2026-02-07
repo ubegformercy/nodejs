@@ -1000,7 +1000,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div class="status-badge" id="statusBadge">Loading...</div>
-                <a href="/dashboard2.html" style="padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📊 Tabbed View</a>
+                <a href="#" onclick="navigateToDashboard2()" style="padding: 8px 16px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📊 Tabbed View</a>
                 <a href="/auth/logout" style="padding: 8px 16px; background: #f0f0f0; color: #333; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Logout</a>
             </div>
         </header>
@@ -1039,8 +1039,11 @@
 
             <!-- Add Entry Form (Only shown after role is selected) -->
             <div class="add-entry-form" id="addEntryForm" style="display: none;">
-                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Timer Entry</h3>
-                <div class="form-grid">
+                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="toggleAddTimerForm()">
+                    <span>➕</span>
+                    <span>Add New Timer Entry</span>
+                </h3>
+                <div class="form-grid" style="display: grid;">
                     <div class="form-group">
                         <label for="newUserSearch">
                             Select User <span style="color: #999; font-size: 12px;">(or enter Discord ID)</span>
@@ -1503,8 +1506,39 @@
 
         // Get guild from URL query parameter
         function getGuildId() {
+            // First try URL parameter
             const params = new URLSearchParams(window.location.search);
-            return params.get('guild');
+            const urlGuildId = params.get('guild');
+            
+            // If found in URL, save to sessionStorage and return
+            if (urlGuildId) {
+                sessionStorage.setItem('guildId', urlGuildId);
+                return urlGuildId;
+            }
+            
+            // Otherwise try sessionStorage
+            return sessionStorage.getItem('guildId');
+        }
+
+        function navigateToDashboard2() {
+            const guildId = getGuildId();
+            if (!guildId) {
+                showAlert('Guild ID not found. Please reload the page.', 'error');
+                return;
+            }
+            // Navigation will happen without URL param since sessionStorage is set
+            window.location.href = '/dashboard2.html';
+        }
+
+        function toggleAddTimerForm() {
+            const form = document.getElementById('addEntryForm');
+            const content = form.querySelector('div.form-grid');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'grid';
+            } else {
+                content.style.display = 'none';
+            }
         }
 
         function showAlert(message, type = 'success') {
