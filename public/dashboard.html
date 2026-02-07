@@ -1424,7 +1424,7 @@
                     <!-- ADD NEW TIMER (Hidden until role selected) -->
                     <div class="form-section" id="addTimerSectionTab" style="display: none; margin-bottom: 20px;">
                         <h3 style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 16px; color: #667eea;" onclick="toggleAddTimerFormTab()">
-                            <span>➕</span>
+                            <span id="addTimerTabToggleIcon">➕</span>
                             <span>Add New Timer Entry</span>
                         </h3>
                         <form id="addEntryFormTab" class="add-timer-form" onsubmit="return handleAddTimerTab(event)" style="display: none;">
@@ -1467,6 +1467,11 @@
                             <div class="form-actions" style="margin-top: 16px;">
                                 <button type="submit" class="btn btn-primary">➕ Add Timer</button>
                                 <button type="reset" class="btn btn-secondary">Clear</button>
+                            </div>
+
+                            <!-- Info Note -->
+                            <div class="form-note" style="margin-top: 16px; padding: 12px; background: #e8f4f8; border-left: 4px solid #0066cc; border-radius: 4px; font-size: 13px; color: #0066cc;">
+                                ℹ️ If no warning channel is selected, a DM will be sent to the user when their time is about to expire.
                             </div>
                         </form>
                     </div>
@@ -3398,9 +3403,11 @@
 
         function toggleAddTimerFormTab() {
             const form = document.getElementById('addEntryFormTab');
-            if (form) {
+            const icon = document.getElementById('addTimerTabToggleIcon');
+            if (form && icon) {
                 const isHidden = form.style.display === 'none';
                 form.style.display = isHidden ? 'block' : 'none';
+                icon.textContent = isHidden ? '➖' : '➕';
             }
         }
 
