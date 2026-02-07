@@ -1983,18 +1983,31 @@
                     credentials: 'include'
                 });
                 
+                console.log('[Dashboard] API response status:', response.status, 'URL:', url);
+                
                 if (response.status === 403 || response.status === 401) {
                     console.warn('Access denied to guild:', guildId);
                     window.location.href = '/login.html';
                     return;
                 }
                 
-                if (!response.ok) throw new Error('Failed to load dashboard data');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[Dashboard] API error response:', response.status, errorText);
+                    throw new Error(`Failed to load dashboard data: ${response.status} ${errorText}`);
+                }
                 
                 const data = await response.json();
+                console.log('[Dashboard] Data loaded successfully, timers:', data.timers?.length || 0);
                 updateDashboard(data);
             } catch (err) {
                 console.error('Dashboard error:', err);
+                console.error('Error details:', {
+                    message: err.message,
+                    stack: err.stack,
+                    guildId: guildId,
+                    url: `/api/dashboard?guildId=${guildId}`
+                });
                 document.getElementById('statusBadge').textContent = 'ERROR';
                 document.getElementById('statusBadge').classList.add('offline');
             }
@@ -2068,6 +2081,7 @@
         function onHeaderRoleSelected() {
             // Get the selected role from header dropdown
             selectedRoleId = document.getElementById('headerRoleFilter').value;
+            console.log('[onHeaderRoleSelected] Selected role ID:', selectedRoleId, 'allTimers count:', allTimers.length);
             
             if (!selectedRoleId) {
                 // Clear all views when no role is selected
@@ -2092,6 +2106,7 @@
             document.getElementById('addTimerSectionTab').style.display = 'block';
             
             // Update both views
+            console.log('[onHeaderRoleSelected] Calling updateRoleInfo and filtering timers');
             updateRoleInfo();
             filterAndSortTimers();
             filterAndSortTimersTab();
@@ -2124,24 +2139,27 @@
         }
 
         function updateRoleInfo() {
-            const selectedRoleId = document.getElementById('roleFilter').value;
             if (!selectedRoleId) return;
             
             const role = allRoles.find(r => r.id === selectedRoleId);
             const timerCount = allTimers.filter(t => t.roleId === selectedRoleId).length;
             
             const infoEl = document.getElementById('roleInfo');
-            infoEl.textContent = `${timerCount} timer${timerCount !== 1 ? 's' : ''} active`;
+            if (infoEl) {
+                infoEl.textContent = `${timerCount} timer${timerCount !== 1 ? 's' : ''} active`;
+            }
         }
 
         function filterAndSortTimers() {
             if (!selectedRoleId) {
+                console.log('[filterAndSortTimers] No role selected, clearing');
                 filteredTimers = [];
                 return;
             }
             
             // Filter by role
             let filtered = allTimers.filter(t => t.roleId === selectedRoleId);
+            console.log('[filterAndSortTimers] Filtered timers for role', selectedRoleId, ':', filtered.length, 'of', allTimers.length);
             
             // Filter by status
             const statusFilter = document.getElementById('statusFilter')?.value || '';
