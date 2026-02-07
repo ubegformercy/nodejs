@@ -901,12 +901,18 @@ async function removeFromQueue(userId, guildId) {
       [guildId, userId]
     );
     
-    // Reorder remaining positions
+    // Reorder remaining positions using CTE
     if (result.rows.length > 0) {
       await pool.query(
-        `UPDATE boost_queue 
-         SET position_order = ROW_NUMBER() OVER (ORDER BY position_order)
-         WHERE guild_id = $1 AND status = 'pending'`,
+        `WITH reordered AS (
+           SELECT id, ROW_NUMBER() OVER (ORDER BY added_at) as new_position
+           FROM boost_queue
+           WHERE guild_id = $1 AND status = 'pending'
+         )
+         UPDATE boost_queue
+         SET position_order = reordered.new_position
+         FROM reordered
+         WHERE boost_queue.id = reordered.id`,
         [guildId]
       );
     }
@@ -958,17 +964,21 @@ async function completeQueue(userId, guildId, adminId = null) {
       [guildId, userId, adminId]
     );
     
-    // Reorder remaining positions
+    // Reorder remaining positions using CTE
     if (result.rows.length > 0) {
       await pool.query(
-        `UPDATE boost_queue 
-         SET position_order = ROW_NUMBER() OVER (ORDER BY position_order)
-         WHERE guild_id = $1 AND status = 'pending'`,
+        `WITH reordered AS (
+           SELECT id, ROW_NUMBER() OVER (ORDER BY added_at) as new_position
+           FROM boost_queue
+           WHERE guild_id = $1 AND status = 'pending'
+         )
+         UPDATE boost_queue
+         SET position_order = reordered.new_position
+         FROM reordered
+         WHERE boost_queue.id = reordered.id`,
         [guildId]
       );
     }
-    
-    return result.rows[0] || null;
   } catch (err) {
     console.error("completeQueue error:", err);
     return null;
