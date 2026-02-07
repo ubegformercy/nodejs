@@ -32,7 +32,8 @@ async function syncGuildMembers(guild) {
     console.log(`[Guild Sync] Starting sync for guild ${guild.name} (${guildId})`);
     const startTime = Date.now();
     
-    let totalMembers = 0;
+    // Get actual guild member count
+    const totalMembers = guild.memberCount || 0;
     let syncedMembers = 0;
     let lastId = undefined;
     let hasMore = true;
@@ -55,23 +56,21 @@ async function syncGuildMembers(guild) {
           break;
         }
         
-        totalMembers += members.size;
+        // Batch insert members to database (instead of individual upserts)
+        const memberData = Array.from(members.values()).map(member => ({
+          guild_id: guildId,
+          user_id: member.user.id,
+          username: member.user.username,
+          display_name: member.displayName || member.user.username,
+          is_bot: member.user.bot,
+          avatar_url: member.user.displayAvatarURL ? member.user.displayAvatarURL({ size: 128 }) : null
+        }));
         
-        // Save members to database
-        for (const [, member] of members) {
-          try {
-            await db.upsertGuildMember(
-              guildId,
-              member.user.id,
-              member.user.username,
-              member.displayName || member.user.username,
-              member.user.bot,
-              member.user.displayAvatarURL ? member.user.displayAvatarURL({ size: 128 }) : null
-            );
-            syncedMembers++;
-          } catch (err) {
-            console.error(`[Guild Sync] Error upserting member ${member.user.id}:`, err.message);
-          }
+        try {
+          await db.batchUpsertGuildMembers(guildId, memberData);
+          syncedMembers += memberData.length;
+        } catch (err) {
+          console.error(`[Guild Sync] Error batch upserting members for ${guildId}:`, err.message);
         }
         
         // Update lastId for pagination
@@ -84,7 +83,7 @@ async function syncGuildMembers(guild) {
         }
         
         // Small delay to be nice to Discord API
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
         
       } catch (err) {
         console.error(`[Guild Sync] Batch fetch error for ${guildId}:`, err.message);

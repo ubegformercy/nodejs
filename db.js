@@ -650,6 +650,47 @@ async function upsertGuildMember(guildId, userId, username, displayName, isBot, 
   }
 }
 
+async function batchUpsertGuildMembers(guildId, memberDataArray) {
+  // Batch upsert multiple members at once for better performance
+  if (!memberDataArray || memberDataArray.length === 0) {
+    return [];
+  }
+
+  try {
+    // Build a single INSERT...ON CONFLICT statement with multiple rows
+    let query = `INSERT INTO guild_members_cache (guild_id, user_id, username, display_name, is_bot, avatar_url, last_synced_at)
+    VALUES `;
+    
+    const values = [];
+    let paramIndex = 1;
+    
+    memberDataArray.forEach((member, index) => {
+      if (index > 0) query += `, `;
+      query += `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, CURRENT_TIMESTAMP)`;
+      values.push(
+        member.guild_id,
+        member.user_id,
+        member.username,
+        member.display_name,
+        member.is_bot,
+        member.avatar_url
+      );
+    });
+    
+    query += ` ON CONFLICT (guild_id, user_id) 
+    DO UPDATE SET username = EXCLUDED.username, display_name = EXCLUDED.display_name, 
+                   is_bot = EXCLUDED.is_bot, avatar_url = EXCLUDED.avatar_url, 
+                   last_synced_at = CURRENT_TIMESTAMP
+    RETURNING *`;
+    
+    const result = await pool.query(query, values);
+    return result.rows;
+  } catch (err) {
+    console.error("batchUpsertGuildMembers error:", err);
+    throw err;
+  }
+}
+
 async function getGuildMembers(guildId) {
   try {
     const result = await pool.query(
@@ -1041,6 +1082,7 @@ module.exports = {
   updateRolestatusLastMessageId,
   // Guild members cache
   upsertGuildMember,
+  batchUpsertGuildMembers,
   getGuildMembers,
   searchGuildMembers,
   clearGuildMemberCache,
