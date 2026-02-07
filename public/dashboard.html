@@ -1427,10 +1427,11 @@
                             <span>➕</span>
                             <span>Add New Timer Entry</span>
                         </h3>
-                        <form id="addEntryFormTab" onsubmit="return handleAddTimerTab(event)">
-                            <div class="form-row">
+                        <form id="addEntryFormTab" class="add-timer-form" onsubmit="return handleAddTimerTab(event)" style="display: none;">
+                            <!-- Row 1: User (wider) and Role (wider) -->
+                            <div class="form-row" style="display: grid; grid-template-columns: 2fr 2fr; gap: 16px;">
                                 <div class="form-group">
-                                    <label for="newUserSearchTab">User</label>
+                                    <label for="newUserSearchTab">User *</label>
                                     <div class="dropdown-wrapper">
                                         <input type="text" id="newUserSearchTab" class="dropdown-search-input" placeholder="Search users or paste Discord ID..." autocomplete="off">
                                         <div class="dropdown-list" id="newUserListTab"></div>
@@ -1441,16 +1442,18 @@
                                     </span>
                                 </div>
                                 <div class="form-group">
-                                    <label for="newMinutesTab">Minutes</label>
-                                    <input type="number" id="newMinutesTab" placeholder="30" min="1" required>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="newRoleTab">Role</label>
+                                    <label for="newRoleTab">Role *</label>
                                     <select id="newRoleTab" required>
                                         <option value="">Select a role...</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: Minutes (1/2 size) and Warning Channel (1/2 size) -->
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <div class="form-group">
+                                    <label for="newMinutesTab">Minutes *</label>
+                                    <input type="number" id="newMinutesTab" placeholder="30" min="1" required>
                                 </div>
                                 <div class="form-group">
                                     <label for="newChannelTab">Warning Channel (Optional)</label>
@@ -1459,7 +1462,9 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="form-actions">
+
+                            <!-- Form Actions -->
+                            <div class="form-actions" style="margin-top: 16px;">
                                 <button type="submit" class="btn btn-primary">➕ Add Timer</button>
                                 <button type="reset" class="btn btn-secondary">Clear</button>
                             </div>
@@ -3394,10 +3399,8 @@
         function toggleAddTimerFormTab() {
             const form = document.getElementById('addEntryFormTab');
             if (form) {
-                const formGrid = form.querySelector('.form-grid');
-                if (formGrid) {
-                    formGrid.style.display = formGrid.style.display === 'none' ? 'grid' : 'none';
-                }
+                const isHidden = form.style.display === 'none';
+                form.style.display = isHidden ? 'block' : 'none';
             }
         }
 
