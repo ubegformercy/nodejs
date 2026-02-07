@@ -59,6 +59,41 @@
             letter-spacing: 0.5px;
         }
 
+        .header-role-filter {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 250px;
+        }
+
+        .header-role-filter label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-role-filter select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .header-role-filter select:hover {
+            border-color: #667eea;
+        }
+
+        .header-role-filter select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
         .view-btn.active {
             background: white;
             color: #667eea;
@@ -1113,9 +1148,17 @@
                     <p>Your Server Boost Monitor</p>
                 </div>
             </div>
-            <div class="view-toggle">
-                <button class="view-btn active" onclick="switchViewMode('grid')">📈 Grid View</button>
-                <button class="view-btn" onclick="switchViewMode('tabbed')">📊 Tabbed View</button>
+            <div style="display: flex; flex-direction: column; gap: 12px; align-items: flex-start;">
+                <div class="view-toggle">
+                    <button class="view-btn active" onclick="switchViewMode('grid')">📈 Grid View</button>
+                    <button class="view-btn" onclick="switchViewMode('tabbed')">📊 Tabbed View</button>
+                </div>
+                <div class="header-role-filter">
+                    <label for="headerRoleFilter">🔍 Filter by Role:</label>
+                    <select id="headerRoleFilter" onchange="onHeaderRoleSelected()">
+                        <option value="">-- Select a Role --</option>
+                    </select>
+                </div>
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div class="status-badge" id="statusBadge">Loading...</div>
@@ -1145,17 +1188,6 @@
 
         <div class="section" id="timersSection">
             <h2>⏱️ Active Timers</h2>
-            
-            <!-- Role Selector -->
-            <div class="role-selector-section">
-                <div class="role-selector-container">
-                    <label for="roleFilter">Filter by Role:</label>
-                    <select id="roleFilter" onchange="onRoleSelected()">
-                        <option value="">-- Select a Role --</option>
-                    </select>
-                    <span class="role-info" id="roleInfo"></span>
-                </div>
-            </div>
 
             <!-- Add Entry Form (Only shown after role is selected) -->
             <div class="add-entry-form" id="addEntryForm" style="display: none;">
@@ -1362,18 +1394,6 @@
             <div class="tabs-content">
                 <!-- TAB 1: ACTIVE TIMERS -->
                 <div class="tab-panel active" id="timers-tab">
-                    <!-- ROLE FILTER SECTION -->
-                    <div class="form-section" style="margin-bottom: 20px;">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="roleFilter">🔍 Filter by Role:</label>
-                                <select id="roleFilter" onchange="onRoleSelectedTab()" style="width: 100%;">
-                                    <option value="">-- Select a Role --</option>
-                                </select>
-                                <span class="role-info" id="roleInfoTab" style="margin-top: 8px; display: block; font-size: 12px; color: #666;"></span>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- ADD NEW TIMER (Hidden until role selected) -->
                     <div class="form-section" id="addTimerSectionTab" style="display: none; margin-bottom: 20px;">
@@ -2043,6 +2063,38 @@
             updateAutopurgeTableTab(data.autopurge || []);
 
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function onHeaderRoleSelected() {
+            // Get the selected role from header dropdown
+            selectedRoleId = document.getElementById('headerRoleFilter').value;
+            
+            if (!selectedRoleId) {
+                // Clear all views when no role is selected
+                document.getElementById('addEntryForm').style.display = 'none';
+                document.getElementById('tableControls').style.display = 'none';
+                document.getElementById('timersList').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👆</div>
+                        <p>Select a role above to view timers</p>
+                    </div>
+                `;
+                
+                // Clear tabbed view
+                document.getElementById('addTimerSectionTab').style.display = 'none';
+                document.getElementById('timersTableTab').innerHTML = '';
+                return;
+            }
+            
+            // Show forms in both views
+            document.getElementById('addEntryForm').style.display = 'block';
+            document.getElementById('tableControls').style.display = 'block';
+            document.getElementById('addTimerSectionTab').style.display = 'block';
+            
+            // Update both views
+            updateRoleInfo();
+            filterAndSortTimers();
+            filterAndSortTimersTab();
         }
 
         function onRoleSelected() {
@@ -2890,6 +2942,24 @@
                             option.value = channel.id;
                             option.textContent = '#' + channel.name;
                             channelSelect.appendChild(option);
+                        });
+                    }
+                }
+                
+                // Populate HEADER Role Filter Dropdown - works for both grid and tabbed views
+                const headerRoleSelect = document.getElementById('headerRoleFilter');
+                if (headerRoleSelect) {
+                    // Remove all options except the placeholder
+                    while (headerRoleSelect.options.length > 1) {
+                        headerRoleSelect.remove(1);
+                    }
+                    // Add new options if data available
+                    if (data.roles && data.roles.length > 0) {
+                        data.roles.forEach(role => {
+                            const option = document.createElement('option');
+                            option.value = role.id;
+                            option.textContent = role.name;
+                            headerRoleSelect.appendChild(option);
                         });
                     }
                 }
