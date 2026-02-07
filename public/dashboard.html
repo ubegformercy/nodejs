@@ -2138,82 +2138,111 @@
         }
 
         function updateDashboard(data) {
-            console.log('[Dashboard] ========== updateDashboard() CALLED ==========');
-            console.log('[Dashboard] updateDashboard() called with data:', {
-                botStatus: data.botStatus,
-                timersCount: data.timers?.length || 0,
-                reportsCount: data.reports?.length || 0,
-                autopurgeCount: data.autopurge?.length || 0
-            });
-            
-            const statusBadge = document.getElementById('statusBadge');
-            console.log('[Dashboard] Current statusBadge text BEFORE update:', statusBadge.textContent);
-            
-            if (data.botStatus === 'online') {
-                statusBadge.textContent = '🟢 ONLINE';
-                statusBadge.classList.remove('offline');
-                console.log('[Dashboard] ✅ Set status to ONLINE');
-            } else {
-                statusBadge.textContent = '🔴 OFFLINE';
-                statusBadge.classList.add('offline');
-                console.log('[Dashboard] ✅ Set status to OFFLINE');
-            }
-            
-            console.log('[Dashboard] statusBadge text AFTER update:', statusBadge.textContent);
-
-            document.getElementById('activeTimers').textContent = data.stats.activeTimers || 0;
-            document.getElementById('scheduledReports').textContent = data.stats.scheduledReports || 0;
-            document.getElementById('autopurgeCount').textContent = data.stats.autopurgeSettings || 0;
-
-            allTimers = data.timers || [];
-            
-            // Extract unique roles from timers
-            const roleMap = new Map();
-            allTimers.forEach(timer => {
-                if (!roleMap.has(timer.roleId)) {
-                    roleMap.set(timer.roleId, timer.role);
+            try {
+                console.log('[Dashboard] ========== updateDashboard() CALLED ==========');
+                console.log('[Dashboard] Data received:', typeof data, data ? 'not null' : 'null');
+                
+                if (!data) {
+                    console.error('[Dashboard] ERROR: data is null or undefined!');
+                    return;
                 }
-            });
-            
-            allRoles = Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }))
-                .sort((a, b) => a.name.localeCompare(b.name));
-            
-            // Populate role selector
-            const roleSelect = document.getElementById('roleFilter');
-            const currentValue = roleSelect.value;
-            roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
-            
-            allRoles.forEach(role => {
-                const option = document.createElement('option');
-                option.value = role.id;
-                option.textContent = role.name;
-                roleSelect.appendChild(option);
-            });
-            
-            // Restore previous selection if still available
-            if (currentValue && allRoles.find(r => r.id === currentValue)) {
-                roleSelect.value = currentValue;
-                // Don't trigger change, just update display
-                updateRoleInfo();
-                filterAndSortTimers();
-            } else {
-                // Clear selection and hide form/table
-                selectedRoleId = null;
-                document.getElementById('addEntryForm').style.display = 'none';
-                document.getElementById('tableControls').style.display = 'none';
-                document.getElementById('roleInfo').textContent = '';
+                
+                console.log('[Dashboard] Data object keys:', Object.keys(data));
+                
+                const statusBadge = document.getElementById('statusBadge');
+                if (!statusBadge) {
+                    console.error('[Dashboard] ERROR: statusBadge element not found!');
+                    return;
+                }
+                console.log('[Dashboard] statusBadge found, current text:', statusBadge.textContent);
+                console.log('[Dashboard] Checking data.botStatus:', data.botStatus);
+                
+                if (data.botStatus === 'online') {
+                    statusBadge.textContent = '🟢 ONLINE';
+                    statusBadge.classList.remove('offline');
+                    console.log('[Dashboard] ✅ Set status to ONLINE');
+                } else {
+                    statusBadge.textContent = '🔴 OFFLINE';
+                    statusBadge.classList.add('offline');
+                    console.log('[Dashboard] ✅ Set status to OFFLINE');
+                }
+                
+                console.log('[Dashboard] statusBadge text AFTER status update:', statusBadge.textContent);
+                
+                console.log('[Dashboard] Updating stats...');
+                document.getElementById('activeTimers').textContent = data.stats.activeTimers || 0;
+                document.getElementById('scheduledReports').textContent = data.stats.scheduledReports || 0;
+                document.getElementById('autopurgeCount').textContent = data.stats.autopurgeSettings || 0;
+                console.log('[Dashboard] Stats updated');
+
+                console.log('[Dashboard] Setting allTimers array...');
+                allTimers = data.timers || [];
+                console.log('[Dashboard] allTimers set, count:', allTimers.length);
+                
+                console.log('[Dashboard] Extracting unique roles...');
+                // Extract unique roles from timers
+                const roleMap = new Map();
+                allTimers.forEach(timer => {
+                    if (!roleMap.has(timer.roleId)) {
+                        roleMap.set(timer.roleId, timer.role);
+                    }
+                });
+                
+                allRoles = Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                console.log('[Dashboard] Roles extracted, count:', allRoles.length);
+                
+                console.log('[Dashboard] Populating role selector...');
+                // Populate role selector
+                const roleSelect = document.getElementById('roleFilter');
+                const currentValue = roleSelect.value;
+                roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
+                
+                allRoles.forEach(role => {
+                    const option = document.createElement('option');
+                    option.value = role.id;
+                    option.textContent = role.name;
+                    roleSelect.appendChild(option);
+                });
+                
+                console.log('[Dashboard] Role selector populated');
+                
+                // Restore previous selection if still available
+                if (currentValue && allRoles.find(r => r.id === currentValue)) {
+                    roleSelect.value = currentValue;
+                    // Don't trigger change, just update display
+                    updateRoleInfo();
+                    filterAndSortTimers();
+                } else {
+                    // Clear selection and hide form/table
+                    selectedRoleId = null;
+                    document.getElementById('addEntryForm').style.display = 'none';
+                    document.getElementById('tableControls').style.display = 'none';
+                    document.getElementById('roleInfo').textContent = '';
+                }
+                
+                console.log('[Dashboard] Updating reports table...');
+                updateReportsTable(data.reports || []);
+                console.log('[Dashboard] Updating autopurge table...');
+                updateAutopurgeTable(data.autopurge || []);
+
+                console.log('[Dashboard] Populating tabbed view...');
+                // Populate tabbed view as well
+                populateRoleFilterTab();
+                updateTimersTableTab(allTimers);
+                updateReportsTableTab(data.reports || []);
+                updateAutopurgeTableTab(data.autopurge || []);
+
+                console.log('[Dashboard] Updating lastUpdate...');
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                console.log('[Dashboard] ========== updateDashboard() COMPLETED SUCCESSFULLY ==========');
+                
+            } catch (err) {
+                console.error('[Dashboard] ERROR INSIDE updateDashboard():', err);
+                console.error('[Dashboard] Error message:', err.message);
+                console.error('[Dashboard] Error stack:', err.stack);
+                // Don't rethrow - we've already logged it
             }
-            
-            updateReportsTable(data.reports || []);
-            updateAutopurgeTable(data.autopurge || []);
-
-            // Populate tabbed view as well
-            populateRoleFilterTab();
-            updateTimersTableTab(allTimers);
-            updateReportsTableTab(data.reports || []);
-            updateAutopurgeTableTab(data.autopurge || []);
-
-            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
 
         function onHeaderRoleSelected() {
