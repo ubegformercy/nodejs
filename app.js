@@ -475,7 +475,10 @@ client.once("ready", async () => {
       .addSubcommand((s) =>
         s
           .setName("add")
-          .setDescription("Add yourself to the boost queue")
+          .setDescription("Add a user to the boost queue (admin can add others)")
+          .addUserOption((o) =>
+            o.setName("user").setDescription("User to add (optional, defaults to you)").setRequired(false)
+          )
           .addStringOption((o) =>
             o.setName("note").setDescription("Optional note or reason (max 255 chars)").setRequired(false)
           )
@@ -2083,11 +2086,24 @@ if (interaction.commandName === "removetime") {
 
       // ---------- /boostqueue add ----------
       if (subcommand === "add") {
+        const userOption = interaction.options.getUser("user");
         const note = interaction.options.getString("note");
-        const userId = interaction.user.id;
+        
+        let targetId = userOption?.id || interaction.user.id;
+        let targetUser = userOption || interaction.user;
+
+        // Only allow adding others if user is admin
+        if (userOption && userOption.id !== interaction.user.id) {
+          if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+            return interaction.editReply({
+              content: "⛔ Only **Server Owner** or users with **Administrator** permission can add others to the queue.",
+              ephemeral: true
+            });
+          }
+        }
 
         // Check if user is already in queue
-        const existingInQueue = await db.getQueueUser(userId, guild.id);
+        const existingInQueue = await db.getQueueUser(targetId, guild.id);
         if (existingInQueue) {
           const embed = new EmbedBuilder()
             .setColor(0xF39C12)
@@ -2095,15 +2111,16 @@ if (interaction.commandName === "removetime") {
             .setTitle("⚠️ Already in Queue")
             .setTimestamp(new Date())
             .addFields(
-              { name: "Status", value: `You are already in position **#${existingInQueue.position_order}**`, inline: true }
+              { name: "User", value: `${targetUser}`, inline: true },
+              { name: "Status", value: `Already in position **#${existingInQueue.position_order}**`, inline: true }
             )
             .setFooter({ text: "BoostMon • Boost Queue" });
           return interaction.editReply({ embeds: [embed] });
         }
 
-        const queueEntry = await db.addToQueue(userId, guild.id, note);
+        const queueEntry = await db.addToQueue(targetId, guild.id, note);
         if (!queueEntry) {
-          return interaction.editReply({ content: "❌ Failed to add you to the queue. Please try again." });
+          return interaction.editReply({ content: "❌ Failed to add to the queue. Please try again." });
         }
 
         const embed = new EmbedBuilder()
@@ -2112,12 +2129,17 @@ if (interaction.commandName === "removetime") {
           .setTitle("✅ Added to Boost Queue")
           .setTimestamp(new Date())
           .addFields(
-            { name: "Your Position", value: `#${queueEntry.position_order}`, inline: true },
+            { name: "User", value: `${targetUser}`, inline: true },
+            { name: "Position", value: `#${queueEntry.position_order}`, inline: true },
             { name: "Added At", value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
           );
 
         if (note) {
-          embed.addFields({ name: "Your Note", value: note, inline: false });
+          embed.addFields({ name: "Note", value: note, inline: false });
+        }
+
+        if (userOption && userOption.id !== interaction.user.id) {
+          embed.addFields({ name: "Added By", value: `${interaction.user}`, inline: true });
         }
 
         embed.setFooter({ text: "BoostMon • Boost Queue" });
