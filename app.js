@@ -476,11 +476,11 @@ client.once("ready", async () => {
         s
           .setName("add")
           .setDescription("Add a user to the boost queue (admin can add others)")
-          .addUserOption((o) =>
-            o.setName("user").setDescription("User to add (optional, defaults to you)").setRequired(false)
-          )
           .addStringOption((o) =>
             o.setName("note").setDescription("Optional note or reason (max 255 chars)").setRequired(false)
+          )
+          .addUserOption((o) =>
+            o.setName("user").setDescription("User to add (optional, defaults to you)").setRequired(false)
           )
       )
       .addSubcommand((s) =>
