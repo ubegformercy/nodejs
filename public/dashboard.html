@@ -1973,12 +1973,18 @@
         async function loadDashboard() {
             try {
                 guildId = getGuildId();
+                console.log('[Dashboard] Attempting to load. guildId from getGuildId():', guildId);
+                console.log('[Dashboard] URL params:', window.location.search);
+                console.log('[Dashboard] sessionStorage.guildId:', sessionStorage.getItem('guildId'));
+                
                 if (!guildId) {
+                    console.warn('[Dashboard] No guildId found, redirecting to guild-select.html');
                     window.location.href = '/guild-select.html';
                     return;
                 }
                 
                 const url = `/api/dashboard?guildId=${guildId}`;
+                console.log('[Dashboard] Fetching:', url);
                 const response = await fetch(url, {
                     credentials: 'include'
                 });
