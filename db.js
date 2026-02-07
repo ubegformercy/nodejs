@@ -979,6 +979,8 @@ async function completeQueue(userId, guildId, adminId = null) {
         [guildId]
       );
     }
+    
+    return result.rows[0] || null;
   } catch (err) {
     console.error("completeQueue error:", err);
     return null;
