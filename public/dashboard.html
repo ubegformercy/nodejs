@@ -1614,6 +1614,11 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- TABBED VIEW FOOTER -->
+            <div class="footer" style="margin-top: 20px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
+                <p>BoostMon Dashboard • v<span id="versionDisplayTab">2.1.4</span> • Last Updated: <span id="lastUpdateTab">Never</span> • <a href="#" onclick="toggleDebugPanel(); return false;" style="color: inherit; text-decoration: none;">🐛 Debug</a></p>
+            </div>
         </div>
         </div>
         </div>
@@ -2031,26 +2036,37 @@
                 console.log('[Dashboard] Data loaded successfully, timers:', data.timers?.length || 0);
                 updateDashboard(data);
             } catch (err) {
-                console.error('Dashboard error:', err);
-                console.error('Error details:', {
+                console.error('[Dashboard] CAUGHT ERROR:', err);
+                console.error('[Dashboard] Error details:', {
                     message: err.message,
                     stack: err.stack,
                     guildId: guildId,
                     url: `/api/dashboard?guildId=${guildId}`
                 });
+                console.error('[Dashboard] Setting ERROR badge');
                 document.getElementById('statusBadge').textContent = 'ERROR';
                 document.getElementById('statusBadge').classList.add('offline');
+                console.error('[Dashboard] ERROR badge set:', document.getElementById('statusBadge').textContent);
             }
         }
 
         function updateDashboard(data) {
+            console.log('[Dashboard] updateDashboard() called with data:', {
+                botStatus: data.botStatus,
+                timersCount: data.timers?.length || 0,
+                reportsCount: data.reports?.length || 0,
+                autopurgeCount: data.autopurge?.length || 0
+            });
+            
             const statusBadge = document.getElementById('statusBadge');
             if (data.botStatus === 'online') {
                 statusBadge.textContent = '🟢 ONLINE';
                 statusBadge.classList.remove('offline');
+                console.log('[Dashboard] Set status to ONLINE');
             } else {
                 statusBadge.textContent = '🔴 OFFLINE';
                 statusBadge.classList.add('offline');
+                console.log('[Dashboard] Set status to OFFLINE');
             }
 
             document.getElementById('activeTimers').textContent = data.stats.activeTimers || 0;
@@ -3419,6 +3435,10 @@
                 if (response.ok) {
                     const versionData = await response.json();
                     document.getElementById('versionDisplay').textContent = versionData.version;
+                    const tabVersion = document.getElementById('versionDisplayTab');
+                    if (tabVersion) {
+                        tabVersion.textContent = versionData.version;
+                    }
                     console.log('[Version] Dashboard v' + versionData.version);
                 }
             } catch (err) {
