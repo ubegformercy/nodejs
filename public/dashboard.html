@@ -750,14 +750,22 @@
             margin-bottom: 4px;
             word-break: break-all;
             white-space: pre-wrap;
+            color: #0f0;
         }
 
+        .debug-log-error,
         .debug-log.error {
             color: #ff6b6b;
         }
 
+        .debug-log-warn,
         .debug-log.warn {
             color: #ffd93d;
+        }
+
+        .debug-log-log,
+        .debug-log.log {
+            color: #0f0;
         }
 
         .debug-log.info {
@@ -1386,8 +1394,8 @@
         </div>
     </div>
 
-    <!-- Debug Panel (Hidden by Default) -->
-    <div class="debug-panel" id="debugPanel" style="display: none;">
+    <!-- Debug Panel (Visible by Default) -->
+    <div class="debug-panel" id="debugPanel" style="display: block;">
         <div class="debug-panel-header">
             <span>🐛 Debug Console</span>
             <button class="debug-panel-toggle" onclick="toggleDebugPanel()">Hide</button>
@@ -1616,8 +1624,8 @@
             </div>
             
             <!-- TABBED VIEW FOOTER -->
-            <div class="footer" style="margin-top: 20px; border-top: 1px solid #e0e0e0; padding-top: 15px;">
-                <p>BoostMon Dashboard • v<span id="versionDisplayTab">2.1.4</span> • Last Updated: <span id="lastUpdateTab">Never</span> • <a href="#" onclick="toggleDebugPanel(); return false;" style="color: inherit; text-decoration: none;">🐛 Debug</a></p>
+            <div class="footer" style="margin-top: 20px; border-top: 1px solid #e0e0e0; padding-top: 15px; padding-bottom: 20px;">
+                <p style="margin: 0;">BoostMon Dashboard • v<span id="versionDisplayTab">2.1.4</span> • Last Updated: <span id="lastUpdateTab">Never</span> • <a href="#" onclick="toggleDebugPanel(); return false;" style="color: inherit; text-decoration: none;">🐛 Debug</a></p>
             </div>
         </div>
         </div>
@@ -1921,10 +1929,87 @@
             }
         }
 
-        // Intercept console.log for debug panel
+        // ========== DEBUG CONSOLE IMPLEMENTATION ==========
         const originalLog = console.log;
         const originalError = console.error;
         const originalWarn = console.warn;
+
+        // Function to log to the debug panel
+        function logToDebugPanel(message, type = 'log') {
+            const debugLogs = document.getElementById('debugLogs');
+            if (!debugLogs) return;
+
+            const logEntry = document.createElement('div');
+            logEntry.className = `debug-log debug-log-${type}`;
+            
+            // Format timestamp
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            
+            // Format message
+            let displayMessage = message;
+            if (typeof message === 'object') {
+                try {
+                    displayMessage = JSON.stringify(message, null, 2);
+                } catch (e) {
+                    displayMessage = String(message);
+                }
+            }
+            
+            logEntry.textContent = `[${timeStr}] ${displayMessage}`;
+            debugLogs.appendChild(logEntry);
+            debugLogs.scrollTop = debugLogs.scrollHeight; // Auto-scroll to bottom
+        }
+
+        // Intercept console methods
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            args.forEach(arg => logToDebugPanel(arg, 'log'));
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            args.forEach(arg => logToDebugPanel(arg, 'error'));
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            args.forEach(arg => logToDebugPanel(arg, 'warn'));
+        };
+
+        // Toggle debug panel visibility
+        function toggleDebugPanel() {
+            const debugPanel = document.getElementById('debugPanel');
+            if (debugPanel) {
+                const isHidden = debugPanel.style.display === 'none';
+                debugPanel.style.display = isHidden ? 'block' : 'none';
+                
+                // Update button text
+                const button = debugPanel.querySelector('.debug-panel-toggle');
+                if (button) {
+                    button.textContent = isHidden ? 'Hide' : 'Show';
+                }
+                
+                // Save preference to sessionStorage
+                sessionStorage.setItem('debugPanelOpen', isHidden);
+            }
+        }
+
+        // Open debug panel by default
+        function openDebugPanelByDefault() {
+            const debugPanel = document.getElementById('debugPanel');
+            if (debugPanel) {
+                debugPanel.style.display = 'block';
+                const button = debugPanel.querySelector('.debug-panel-toggle');
+                if (button) {
+                    button.textContent = 'Hide';
+                }
+                sessionStorage.setItem('debugPanelOpen', true);
+                console.log('🐛 Debug Console Opened');
+            }
+        }
+
+        // ========== END DEBUG CONSOLE IMPLEMENTATION ==========
 
         // Check authentication on page load
         async function checkAuth() {
