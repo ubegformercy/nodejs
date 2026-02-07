@@ -2113,8 +2113,13 @@ if (interaction.commandName === "removetime") {
             .addFields(
               { name: "User", value: `${targetUser}`, inline: true },
               { name: "Status", value: `Already in position **#${existingInQueue.position_order}**`, inline: true }
-            )
-            .setFooter({ text: "BoostMon • Boost Queue" });
+            );
+          
+          if (existingInQueue.note) {
+            embed.addFields({ name: "Note", value: existingInQueue.note, inline: false });
+          }
+          
+          embed.setFooter({ text: "BoostMon • Boost Queue" });
           return interaction.editReply({ embeds: [embed] });
         }
 
