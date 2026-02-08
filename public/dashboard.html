@@ -2882,7 +2882,13 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || 'Failed to add report');
+                    let message = error.error || 'Failed to add report';
+                    
+                    // Improve 409 Conflict messages
+                    if (response.status === 409) {
+                        message = 'A scheduled report already exists for this role and channel combination. You can update or delete the existing one instead.';
+                    }
+                    throw new Error(message);
                 }
 
                 showAlert('Scheduled report added successfully!', 'success');
@@ -2922,7 +2928,13 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || 'Failed to add report');
+                    let message = error.error || 'Failed to add report';
+                    
+                    // Improve 409 Conflict messages
+                    if (response.status === 409) {
+                        message = 'A scheduled report already exists for this role and channel combination. You can update or delete the existing one instead.';
+                    }
+                    throw new Error(message);
                 }
 
                 showAlert('Scheduled report added successfully!', 'success');
@@ -3141,7 +3153,13 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || 'Failed to add autopurge setting');
+                    let message = error.error || 'Failed to add autopurge setting';
+                    
+                    // Improve 409 Conflict messages
+                    if (response.status === 409) {
+                        message = 'This channel already has an auto-purge setting. You can update or delete the existing one instead.';
+                    }
+                    throw new Error(message);
                 }
 
                 showAlert('Auto-purge setting added successfully!', 'success');
@@ -3187,7 +3205,13 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || 'Failed to add autopurge setting');
+                    let message = error.error || 'Failed to add autopurge setting';
+                    
+                    // Improve 409 Conflict messages
+                    if (response.status === 409) {
+                        message = 'This channel already has an auto-purge setting. You can update or delete the existing one instead.';
+                    }
+                    throw new Error(message);
                 }
 
                 showAlert('Auto-purge setting added successfully!', 'success');
