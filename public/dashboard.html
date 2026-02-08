@@ -1147,10 +1147,19 @@
 
         /* Grid View Container */
         .grid-view {
-            display: block;
+            display: none; /* Hidden by default - Tabbed View is default */
         }
 
         .grid-view.hidden {
+            display: none;
+        }
+
+        /* Tabbed View Container - shown by default */
+        .tabs-container {
+            display: block;
+        }
+
+        .tabs-container.hidden {
             display: none;
         }
     </style>
@@ -1167,8 +1176,8 @@
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; align-items: flex-start;">
                 <div class="view-toggle">
-                    <button class="view-btn active" onclick="switchViewMode('grid')">📈 Grid View</button>
-                    <button class="view-btn" onclick="switchViewMode('tabbed')">📊 Tabbed View</button>
+                    <button class="view-btn active" onclick="switchViewMode('tabbed')">📊 Tabbed View</button>
+                    <button class="view-btn" onclick="switchViewMode('grid')">📈 Grid View</button>
                 </div>
                 <div class="header-role-filter">
                     <label for="headerRoleFilter">🔍 Filter by Role:</label>
@@ -1459,8 +1468,8 @@
                             <span>Add New Timer Entry</span>
                         </h3>
                         <form id="addEntryFormTab" class="add-timer-form" onsubmit="return handleAddTimerTab(event)" style="display: none;">
-                            <!-- Row 1: User (wider) and Role (wider) -->
-                            <div class="form-row" style="display: grid; grid-template-columns: 2fr 2fr; gap: 16px;">
+                            <!-- Single row: All fields inline -->
+                            <div class="form-row" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
                                 <div class="form-group">
                                     <label for="newUserSearchTab">User *</label>
                                     <div class="dropdown-wrapper">
@@ -1473,31 +1482,22 @@
                                     </span>
                                 </div>
                                 <div class="form-group">
+                                    <label for="newMinutesTab">Minutes *</label>
+                                    <input type="number" id="newMinutesTab" placeholder="30" min="1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="newChannelTab">Warning Channel</label>
+                                    <select id="newChannelTab">
+                                        <option value="">DM warnings</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
                                     <label for="newRoleTab">Role *</label>
                                     <select id="newRoleTab" required>
                                         <option value="">Select a role...</option>
                                     </select>
                                 </div>
-                            </div>
-
-                            <!-- Row 2: Minutes (1/2 size) and Warning Channel (1/2 size) -->
-                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                <div class="form-group">
-                                    <label for="newMinutesTab">Minutes *</label>
-                                    <input type="number" id="newMinutesTab" placeholder="30" min="1" required>
-                                </div>
-                                <div class="form-group">
-                                    <label for="newChannelTab">Warning Channel (Optional)</label>
-                                    <select id="newChannelTab">
-                                        <option value="">DM warnings</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Form Actions -->
-                            <div class="form-actions" style="margin-top: 16px;">
-                                <button type="submit" class="btn btn-primary">➕ Add Timer</button>
-                                <button type="reset" class="btn btn-secondary">Clear</button>
+                                <button type="submit" class="btn btn-primary" style="padding: 10px 20px; white-space: nowrap;">➕ Add</button>
                             </div>
 
                             <!-- Info Note -->
@@ -1677,25 +1677,25 @@
         let filteredTimers = [];
         let debugLogs = [];
         let allUsers = []; // Store all users for searchable dropdown
-        let currentView = 'grid'; // Track current view mode
+        let currentView = 'tabbed'; // Track current view mode
 
         // View Switching Functions
         function switchViewMode(mode) {
             currentView = mode;
             const gridView = document.querySelector('.grid-view');
-            const tabbedView = document.getElementById('tabbedView');
+            const tabbedView = document.getElementById('tabbedView') || document.querySelector('.tabs-container');
             const buttons = document.querySelectorAll('.view-btn');
             
             if (mode === 'grid') {
                 gridView.style.display = 'block';
-                tabbedView.style.display = 'none';
-                buttons[0].classList.add('active');
-                buttons[1].classList.remove('active');
-            } else {
-                gridView.style.display = 'none';
-                tabbedView.style.display = 'block';
+                if (tabbedView) tabbedView.style.display = 'none';
                 buttons[0].classList.remove('active');
                 buttons[1].classList.add('active');
+            } else {
+                gridView.style.display = 'none';
+                if (tabbedView) tabbedView.style.display = 'block';
+                buttons[0].classList.add('active');
+                buttons[1].classList.remove('active');
             }
         }
 
