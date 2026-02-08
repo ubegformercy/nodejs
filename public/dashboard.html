@@ -2694,8 +2694,10 @@
 
         function updateReportsTable(reports) {
             const tbody = document.getElementById('reportsTableBody');
+            console.log('[updateReportsTable] Called with:', reports, 'length:', reports?.length);
             
             if (!reports || reports.length === 0) {
+                console.log('[updateReportsTable] No reports, showing empty state');
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
@@ -2706,6 +2708,7 @@
                 `;
                 return;
             }
+            console.log('[updateReportsTable] Rendering', reports.length, 'reports');
 
             tbody.innerHTML = reports.map(report => {
                 const lastReport = report.lastReport || 'Never';
@@ -2889,8 +2892,10 @@
 
         function updateAutopurgeTable(autopurge) {
             const tbody = document.getElementById('autopurgeTableBody');
+            console.log('[updateAutopurgeTable] Called with:', autopurge, 'length:', autopurge?.length);
             
             if (autopurge.length === 0) {
+                console.log('[updateAutopurgeTable] No autopurge settings, showing empty state');
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
@@ -2901,6 +2906,7 @@
                 `;
                 return;
             }
+            console.log('[updateAutopurgeTable] Rendering', autopurge.length, 'autopurge settings');
 
             tbody.innerHTML = autopurge.map(setting => {
                 const typeDisplay = setting.type === 'all' ? 'All Messages' : 
