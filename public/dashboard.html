@@ -1560,7 +1560,7 @@
                     <div class="form-section">
                         <h3>➕ Add New Scheduled Report</h3>
                         <form id="addReportFormTab" onsubmit="return handleAddReportTab(event)">
-                            <div class="form-row">
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 16px; align-items: flex-end;">
                                 <div class="form-group">
                                     <label for="reportRoleTab">Role to Monitor</label>
                                     <select id="reportRoleTab" required>
@@ -1577,10 +1577,9 @@
                                     <label for="reportIntervalTab">Interval (minutes)</label>
                                     <input type="number" id="reportIntervalTab" placeholder="60" min="1" required>
                                 </div>
-                            </div>
-                            <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">➕ Add Report</button>
-                                <button type="reset" class="btn btn-secondary">Clear</button>
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary">➕ Add Report</button>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -1609,7 +1608,7 @@
                     <div class="form-section">
                         <h3>➕ Add Auto-Purge Setting</h3>
                         <form id="autopurgeFormTab" onsubmit="return handleAddAutopurgeTab(event)">
-                            <div class="form-row">
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                                 <div class="form-group">
                                     <label for="autopurgeChannelTab">Channel to Purge</label>
                                     <select id="autopurgeChannelTab" required>
@@ -1626,7 +1625,7 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="form-row">
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: flex-end;">
                                 <div class="form-group">
                                     <label for="autopurgeLinesTab">Messages to Delete</label>
                                     <input id="autopurgeLinesTab" type="number" min="1" placeholder="10" required>
@@ -1635,10 +1634,9 @@
                                     <label for="autopurgeIntervalTab">Interval (minutes)</label>
                                     <input id="autopurgeIntervalTab" type="number" min="1" placeholder="30" required>
                                 </div>
-                            </div>
-                            <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">➕ Add Auto-Purge</button>
-                                <button type="reset" class="btn btn-secondary">Clear</button>
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary">➕ Add Setting</button>
+                                </div>
                             </div>
                         </form>
                     </div>
