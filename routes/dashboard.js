@@ -253,20 +253,29 @@ router.get('/api/dashboard', requireAuth, requireGuildAccess, requireDashboardAc
         const userName = await getUserName(timer.user_id);
         const roleName = getRoleName(timer.role_id);
 
-        // Get member for display name and online status
+        // Get member display name and presence from fast in-memory cache (no API calls)
         let displayName = userName;
         let presence = 'offline';
-        try {
-          const guild = global.botClient?.guilds?.cache?.get(guildId);
-          if (guild) {
-            const member = await guild.members.fetch(timer.user_id).catch(() => null);
-            if (member) {
-              displayName = member.displayName || userName;
-              presence = member.presence?.status || 'offline';
+        
+        // Try in-memory cache first (populated by guild-member-sync)
+        const cachedMember = global.memberCache?.[guildId]?.[timer.user_id];
+        if (cachedMember) {
+          displayName = cachedMember.displayName || userName;
+          presence = cachedMember.presence || 'offline';
+        } else {
+          // Fallback: try to get from Discord cache (no async wait)
+          try {
+            const guild = global.botClient?.guilds?.cache?.get(guildId);
+            if (guild) {
+              const member = guild.members.cache.get(timer.user_id);
+              if (member) {
+                displayName = member.displayName || userName;
+                presence = member.presence?.status || 'offline';
+              }
             }
+          } catch (err) {
+            // Silently fall back to userName and offline
           }
-        } catch (err) {
-          // Fallback to userName if member fetch fails
         }
 
         return {

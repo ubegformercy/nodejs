@@ -69,6 +69,23 @@ async function syncGuildMembers(guild) {
         try {
           await db.batchUpsertGuildMembers(guildId, memberData);
           syncedMembers += memberData.length;
+          
+          // Update in-memory member cache for fast dashboard lookups (no API calls)
+          if (!global.memberCache) {
+            global.memberCache = {};
+          }
+          if (!global.memberCache[guildId]) {
+            global.memberCache[guildId] = {};
+          }
+          
+          Array.from(members.values()).forEach(member => {
+            global.memberCache[guildId][member.id] = {
+              displayName: member.displayName || member.user.username,
+              presence: member.presence?.status || 'offline',
+              username: member.user.username,
+              avatar_url: member.user.displayAvatarURL ? member.user.displayAvatarURL({ size: 128 }) : null
+            };
+          });
         } catch (err) {
           console.error(`[Guild Sync] Error batch upserting members for ${guildId}:`, err.message);
         }

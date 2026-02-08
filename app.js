@@ -49,6 +49,11 @@ if (GUILD_ID) {
   console.log("[MULTI-SERVER] GUILD_ID not set: bot will work on ALL servers (global commands)");
 }
 
+// Initialize in-memory member cache for fast dashboard lookups
+// Structure: { guildId: { userId: { displayName, presence, username, avatar_url } } }
+global.memberCache = {};
+console.log("[Member Cache] Initialized for fast dashboard performance");
+
 
 
 //----------------------------------------
