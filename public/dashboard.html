@@ -2343,6 +2343,7 @@
                 `Are you sure you want to delete the auto-purge setting for\n${channelCell}?`,
                 async () => {
                     try {
+                        console.log('[DEBUG] Deleting autopurge - channelId:', channelId, 'type:', typeof channelId, 'guildId:', guildId);
                         const response = await fetch(`/api/autopurge/delete?guildId=${guildId}`, {
                             method: 'DELETE',
                             credentials: 'include',
@@ -2350,8 +2351,10 @@
                             body: JSON.stringify({ channelId })
                         });
 
+                        console.log('[DEBUG] Response status:', response.status);
                         if (!response.ok) {
                             const error = await response.json();
+                            console.log('[DEBUG] Error response:', error);
                             throw new Error(error.error || 'Failed to delete autopurge setting');
                         }
 
@@ -3185,39 +3188,6 @@
             }
         }
 
-        async function deleteReport(reportId) {
-            // Get report info for the confirmation message
-            const reportRow = document.querySelector(`button[onclick="deleteReport(${reportId})"]`)?.closest('tr');
-            const roleCell = reportRow?.cells[0]?.textContent || 'Unknown Role';
-            const channelCell = reportRow?.cells[1]?.textContent || 'Unknown Channel';
-
-            showConfirmDialog(
-                'Confirm Delete',
-                `Are you sure you want to delete the report for\n${roleCell} in ${channelCell}?`,
-                async () => {
-                    try {
-                        const response = await fetch(`/api/report/delete?guildId=${guildId}`, {
-                            method: 'DELETE',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ reportId })
-                        });
-
-                        if (!response.ok) {
-                            const error = await response.json();
-                            throw new Error(error.error || 'Failed to delete report');
-                        }
-
-                        showAlert('Report deleted successfully!', 'success');
-                        await loadDashboard();
-                    } catch (err) {
-                        console.error('Error deleting report:', err);
-                        showAlert(`Error: ${err.message}`, 'error');
-                    }
-                }
-            );
-        }
-
         // Grid View: Update Autopurge Table
         function updateAutopurgeTable(autopurge) {
             const tbody = document.getElementById('autopurgeTableBody');
@@ -3474,38 +3444,6 @@
                 console.error('Error updating autopurge setting:', err);
                 showAlert(`Error: ${err.message}`, 'error');
             }
-        }
-
-        async function deleteAutopurgeSetting(channelId) {
-            // Get channel info for the confirmation message
-            const row = document.querySelector(`button[onclick="deleteAutopurgeSetting(${channelId})"]`)?.closest('tr');
-            const channelCell = row?.cells[0]?.textContent || 'Unknown Channel';
-
-            showConfirmDialog(
-                'Confirm Delete',
-                `Are you sure you want to delete the auto-purge setting for\n${channelCell}?`,
-                async () => {
-                    try {
-                        const response = await fetch(`/api/autopurge/delete?guildId=${guildId}`, {
-                            method: 'DELETE',
-                            credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ channelId })
-                        });
-
-                        if (!response.ok) {
-                            const error = await response.json();
-                            throw new Error(error.error || 'Failed to delete autopurge setting');
-                        }
-
-                        showAlert('Auto-purge setting deleted successfully!', 'success');
-                        await loadDashboard();
-                    } catch (err) {
-                        console.error('Error deleting autopurge setting:', err);
-                        showAlert(`Error: ${err.message}`, 'error');
-                    }
-                }
-            );
         }
 
         /**

@@ -1207,6 +1207,8 @@ router.delete('/api/autopurge/delete', requireAuth, requireGuildAccess, requireD
       return res.status(400).json({ error: 'Channel ID is required' });
     }
 
+    console.log('[DEBUG] Deleting autopurge setting:', { guildId, channelId, bodyChannelId: req.body.channelId });
+
     const result = await db.pool.query(
       `DELETE FROM autopurge_settings
        WHERE guild_id = $1 AND channel_id = $2
@@ -1214,7 +1216,15 @@ router.delete('/api/autopurge/delete', requireAuth, requireGuildAccess, requireD
       [guildId, channelId]
     );
 
+    console.log('[DEBUG] Delete result rows:', result.rows.length);
+
     if (result.rows.length === 0) {
+      // Try to fetch to see what exists
+      const existing = await db.pool.query(
+        `SELECT id, guild_id, channel_id FROM autopurge_settings WHERE guild_id = $1 LIMIT 5`,
+        [guildId]
+      );
+      console.log('[DEBUG] Existing autopurge settings for guild:', existing.rows);
       return res.status(404).json({ error: 'Auto-purge setting not found' });
     }
 
