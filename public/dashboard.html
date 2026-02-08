@@ -2227,17 +2227,23 @@
                 console.log('[Dashboard] Roles extracted, count:', allRoles.length);
                 
                 console.log('[Dashboard] Populating role selector...');
-                // Populate role selector
-                const roleSelect = document.getElementById('roleFilter');
-                const currentValue = roleSelect.value;
-                roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
-                
-                allRoles.forEach(role => {
-                    const option = document.createElement('option');
-                    option.value = role.id;
-                    option.textContent = role.name;
-                    roleSelect.appendChild(option);
-                });
+                // Populate role selector (use headerRoleFilter for grid view)
+                const roleSelect = document.getElementById('headerRoleFilter');
+                if (roleSelect) {
+                    const currentValue = roleSelect.value;
+                    roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
+                    
+                    allRoles.forEach(role => {
+                        const option = document.createElement('option');
+                        option.value = role.id;
+                        option.textContent = role.name;
+                        roleSelect.appendChild(option);
+                    });
+                    
+                    roleSelect.value = currentValue;
+                } else {
+                    console.warn('[Dashboard] Role filter element not found');
+                }
                 
                 console.log('[Dashboard] Role selector populated');
                 
