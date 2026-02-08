@@ -2450,7 +2450,10 @@
                 let currentValue = null;  // Declare outside the if block
                 
                 if (roleSelect) {
-                    currentValue = roleSelect.value;  // Assign the value
+                    // IMPORTANT: Save current value BEFORE clearing the dropdown
+                    currentValue = roleSelect.value;
+                    console.log('[Dashboard] Saved current role selection before refresh:', currentValue);
+                    
                     roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
                     
                     allRoles.forEach(role => {
@@ -2460,7 +2463,14 @@
                         roleSelect.appendChild(option);
                     });
                     
-                    roleSelect.value = currentValue;
+                    // Try to restore the previous selection
+                    if (currentValue && allRoles.find(r => r.id === currentValue)) {
+                        roleSelect.value = currentValue;
+                        console.log('[Dashboard] Restored role selection to:', currentValue);
+                    } else {
+                        roleSelect.value = '';
+                        console.log('[Dashboard] Role not found in updated list, clearing selection');
+                    }
                 } else {
                     console.warn('[Dashboard] Role filter element not found');
                 }
@@ -2469,13 +2479,16 @@
                 
                 // Restore previous selection if still available
                 if (roleSelect && currentValue && allRoles.find(r => r.id === currentValue)) {
-                    roleSelect.value = currentValue;
+                    console.log('[Dashboard] Preserving selectedRoleId:', currentValue);
                     selectedRoleId = currentValue; // Ensure selectedRoleId is set before filtering
                     // Don't trigger change, just update display
                     updateRoleInfo();
                     filterAndSortTimers();
                 } else {
-                    // Clear selection and hide form/table
+                    // Clear selection and hide form/table only if there was a selection before
+                    if (currentValue) {
+                        console.log('[Dashboard] Previous role selection lost during refresh, clearing views');
+                    }
                     selectedRoleId = null;
                     const addEntryFormEl = document.getElementById('addEntryForm');
                     const tableControlsEl = document.getElementById('tableControls');
@@ -2499,12 +2512,22 @@
                 
                 // Preserve selectedRoleId across refreshes (for both grid and tabbed views)
                 if (selectedRoleId) {
-                    console.log('[Dashboard] Preserving selectedRoleId:', selectedRoleId, 'across refresh');
+                    console.log('[Dashboard] Preserving selectedRoleId across refresh:', selectedRoleId);
+                    // Show the forms and tables for both views
+                    const addEntryFormTab = document.getElementById('addTimerSectionTab');
+                    const tablesContainer = document.getElementById('timersTableTab')?.closest('.table-wrapper') || document.getElementById('timersTableTab');
+                    
+                    if (addEntryFormTab) addEntryFormTab.style.display = 'block';
+                    if (tablesContainer) tablesContainer.style.display = 'block';
+                    
                     // Re-apply the filter after reload
                     filterAndSortTimersTab();
+                    console.log('[Dashboard] Filters re-applied for selectedRoleId:', selectedRoleId);
                 } else {
                     // Don't show timers until a role is selected in tabbed view
-                    console.log('[Dashboard] No selectedRoleId set, clearing tabbed timers table');
+                    console.log('[Dashboard] No selectedRoleId set, clearing tabbed views');
+                    const addEntryFormTab = document.getElementById('addTimerSectionTab');
+                    if (addEntryFormTab) addEntryFormTab.style.display = 'none';
                     document.getElementById('timersListTab').innerHTML = '<tr><td colspan="6" class="placeholder-state">Select a role to view timers</td></tr>';
                 }
                 
