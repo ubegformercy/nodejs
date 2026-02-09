@@ -7,6 +7,8 @@
 # Development & Internal Documentation (keep local only)
 # Only README.md is tracked in the root; all other docs go to /docs which is gitignored
 /docs/
+/*.md
+!README.md
 
 # Temporary files
 *.sh
