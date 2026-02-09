@@ -1673,11 +1673,11 @@ if (interaction.commandName === "removetime") {
           .setDescription(description)
           .setTimestamp(new Date())
           .addFields(
-            { name: "━━━━━━━━━━━━━━━", value: "Summary", inline: false },
-            { name: "Total Members", value: `${totalMembers}`, inline: true },
-            { name: "Active ⏱️", value: `${activeMembers}`, inline: true },
-            { name: "Expires Soon 🟡", value: `${expiringMembers}`, inline: true },
-            { name: "Paused ⏸️", value: `${pausedMembers}`, inline: true }
+            { 
+              name: "Summary", 
+              value: `**Total Members**\n${totalMembers}\n\n**Active ⏱️**\n${activeMembers}\n\n**Expires Soon 🟡**\n${expiringMembers}\n\n**Paused ⏸️**\n${pausedMembers}`,
+              inline: false 
+            }
           )
           .setFooter({ text: `BoostMon • Showing ${Math.min(membersList.length, 30)} members` });
 
