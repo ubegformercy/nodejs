@@ -2787,10 +2787,11 @@ async function executeScheduledRolestatus(guild, now) {
         }
 
         // Purge lines if configured
-        if (schedule.purge_lines && schedule.purge_lines > 0) {
+        const purgeLines = Number(schedule.purge_lines) || 0;
+        if (purgeLines > 0) {
           try {
-            console.log(`[SCHEDULED-REPORT] Attempting to purge ${schedule.purge_lines} message(s) from ${channel.name}...`);
-            const messages = await channel.messages.fetch({ limit: schedule.purge_lines });
+            console.log(`[SCHEDULED-REPORT] Attempting to purge ${purgeLines} message(s) from ${channel.name}...`);
+            const messages = await channel.messages.fetch({ limit: purgeLines });
             console.log(`[SCHEDULED-REPORT] Fetched ${messages.size} message(s) to purge`);
             if (messages && messages.size > 0) {
               await channel.bulkDelete(messages, true);
