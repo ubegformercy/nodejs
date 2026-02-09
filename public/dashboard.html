@@ -3607,6 +3607,9 @@
                 // Populate HEADER Role Filter Dropdown - works for both grid and tabbed views
                 const headerRoleSelect = document.getElementById('headerRoleFilter');
                 if (headerRoleSelect) {
+                    // Preserve the currently selected value
+                    const previousValue = headerRoleSelect.value;
+                    
                     // Remove all options except the placeholder
                     while (headerRoleSelect.options.length > 1) {
                         headerRoleSelect.remove(1);
@@ -3619,6 +3622,11 @@
                             option.textContent = role.name;
                             headerRoleSelect.appendChild(option);
                         });
+                    }
+                    
+                    // Restore the previously selected value
+                    if (previousValue && headerRoleSelect.querySelector(`option[value="${previousValue}"]`)) {
+                        headerRoleSelect.value = previousValue;
                     }
                 }
                 
