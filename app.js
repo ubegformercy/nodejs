@@ -1740,6 +1740,10 @@ if (interaction.commandName === "removetime") {
             });
           }
 
+          const purgeDescription = purgeLines === 0 
+            ? "🟢 Disabled - all messages will be kept" 
+            : `🗑️ Will delete ${purgeLines} message(s) before each report`;
+
           const embed = new EmbedBuilder()
             .setColor(0x2ECC71)
             .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
@@ -1749,7 +1753,7 @@ if (interaction.commandName === "removetime") {
               { name: "Role", value: `${role.name}`, inline: true },
               { name: "Channel", value: `${channel.name}`, inline: true },
               { name: "Interval", value: `Every ${interval} minutes`, inline: true },
-              { name: "Purge Lines", value: `${purgeLines === 0 ? "Disabled" : `${purgeLines} line(s)`}`, inline: true },
+              { name: "Purge Configuration", value: purgeDescription, inline: false },
               { name: "Status", value: "🟢 Active - Reports will begin shortly", inline: false }
             )
             .setFooter({ text: "BoostMon • Scheduled Report Started" });
