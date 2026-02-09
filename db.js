@@ -126,6 +126,21 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_registrations (
+        id SERIAL PRIMARY KEY,
+        guild_id VARCHAR(255) NOT NULL,
+        discord_id VARCHAR(255) NOT NULL,
+        discord_username VARCHAR(255) NOT NULL,
+        in_game_username VARCHAR(255) NOT NULL,
+        display_name VARCHAR(255) NOT NULL,
+        registered_by VARCHAR(255) NOT NULL,
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, discord_id)
+      );
+    `);
+
     // Add missing column if it doesn't exist (for existing databases)
     try {
       await client.query(`
@@ -181,6 +196,8 @@ async function initDatabase() {
       'CREATE INDEX IF NOT EXISTS idx_boost_queue_user_id ON boost_queue(guild_id, user_id)',
       'CREATE INDEX IF NOT EXISTS idx_boost_queue_position ON boost_queue(guild_id, position_order)',
       'CREATE INDEX IF NOT EXISTS idx_boost_queue_status ON boost_queue(guild_id, status)',
+      'CREATE INDEX IF NOT EXISTS idx_user_registrations_guild_id ON user_registrations(guild_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_registrations_discord_id ON user_registrations(guild_id, discord_id)',
     ];
 
       for (const indexQuery of indexes) {
@@ -1041,6 +1058,37 @@ async function getQueueUser(userId, guildId) {
   }
 }
 
+async function registerUser(data) {
+  try {
+    const result = await pool.query(
+      `INSERT INTO user_registrations 
+       (guild_id, discord_id, discord_username, in_game_username, display_name, registered_by, registered_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (guild_id, discord_id) DO UPDATE SET
+         discord_username = $3,
+         in_game_username = $4,
+         display_name = $5,
+         registered_by = $6,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [
+        data.guild_id,
+        data.discord_id,
+        data.discord_username,
+        data.in_game_username,
+        data.display_name,
+        data.registered_by,
+        data.registered_at || new Date(),
+        new Date()
+      ]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error("registerUser error:", err);
+    return null;
+  }
+}
+
 async function closePool() {
   await pool.end();
   console.log("Database connection pool closed");
@@ -1105,6 +1153,9 @@ module.exports = {
   getUserQueuePosition,
   completeQueue,
   getQueueUser,
+  
+  // User registration
+  registerUser,
   
   closePool,
 };
