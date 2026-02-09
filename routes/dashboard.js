@@ -584,6 +584,86 @@ router.delete('/api/timer/delete', requireAuth, requireGuildAccess, requireDashb
 });
 
 /**
+ * POST /api/timer/pause-toggle
+ * Toggle pause/resume state for a timer
+ * Body:
+ *   - userId: Discord User ID (required)
+ *   - roleId: Discord Role ID (required)
+ *   - guildId: Discord Guild ID (passed via query/middleware)
+ * 
+ * Returns the new pause state and remaining time
+ * Protected: Requires authentication and guild access
+ */
+router.post('/api/timer/pause-toggle', requireAuth, requireGuildAccess, requireDashboardAccess, async (req, res) => {
+  try {
+    console.log('[PAUSE-TOGGLE] Received pause-toggle request');
+    
+    const { userId, roleId } = req.body;
+    const guildId = req.guildId;
+
+    console.log(`[PAUSE-TOGGLE] userId: ${userId}, roleId: ${roleId}, guildId: ${guildId}`);
+
+    // Validation
+    if (!userId || !roleId) {
+      console.log('[PAUSE-TOGGLE] Error: userId or roleId is missing');
+      return res.status(400).json({ error: 'User ID and Role ID are required' });
+    }
+
+    // Get current timer state
+    const timerResult = await db.getTimerForRole(userId, roleId);
+    if (!timerResult) {
+      console.log('[PAUSE-TOGGLE] Timer not found');
+      return res.status(404).json({ error: 'Timer not found' });
+    }
+
+    let newExpiresAt;
+    if (timerResult.paused) {
+      // Timer is paused, resume it
+      console.log('[PAUSE-TOGGLE] Resuming timer');
+      newExpiresAt = await db.resumeTimer(userId, roleId);
+    } else {
+      // Timer is active, pause it
+      console.log('[PAUSE-TOGGLE] Pausing timer');
+      await db.pauseTimer(userId, roleId);
+    }
+
+    // Get updated timer state
+    const updatedTimer = await db.getTimerForRole(userId, roleId);
+    
+    console.log('[PAUSE-TOGGLE] Timer toggled successfully');
+    res.json({
+      success: true,
+      paused: updatedTimer.paused,
+      remainingMs: updatedTimer.paused ? updatedTimer.paused_remaining_ms : (updatedTimer.expires_at - Date.now()),
+      formattedTime: formatDuration(updatedTimer.paused ? updatedTimer.paused_remaining_ms : (updatedTimer.expires_at - Date.now()))
+    });
+  } catch (err) {
+    console.error('[PAUSE-TOGGLE] Error toggling pause:', err);
+    console.error('[PAUSE-TOGGLE] Error stack:', err.stack);
+    res.status(500).json({ error: 'Failed to toggle pause state', details: err.message });
+  }
+});
+
+/**
+ * Helper function to format duration in milliseconds to readable string
+ */
+function formatDuration(ms) {
+  if (ms <= 0) return '0s';
+  
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0) parts.push(`${seconds}s`);
+  
+  return parts.length > 0 ? parts.join(' ') : '0s';
+}
+
+/**
  * GET /api/dropdown-data
  * Get available users, roles, and channels for form dropdowns
  * Uses CACHED Discord data only (no network fetches to avoid timeouts)

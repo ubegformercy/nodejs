@@ -499,6 +499,32 @@
             transform: scale(1.1);
         }
 
+        .pause-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.2s;
+            margin-right: 4px;
+        }
+
+        .pause-btn:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+
+        .pause-btn.paused {
+            background: #27ae60;
+        }
+
+        .pause-btn.paused:hover {
+            background: #229954;
+        }
+
         /* Autopurge Form Styles */
         .add-autopurge-form {
             background: #f9f9f9;
@@ -2990,6 +3016,66 @@
             document.getElementById('confirmModal').classList.remove('active');
         }
 
+        async function togglePauseTimer(userId, roleId, event) {
+            try {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                const button = event.currentTarget;
+                const userName = button.getAttribute('data-user') || 'Unknown User';
+                const roleName = button.getAttribute('data-role') || 'Unknown Role';
+                
+                addDebugLog(`⏸️ togglePauseTimer called for ${userName} (role: ${roleName})`, 'info');
+                
+                // Get the guildId
+                const guild = getGuildId();
+                if (!guild) {
+                    showAlert('Guild ID not available', 'error');
+                    return;
+                }
+
+                addDebugLog(`Sending pause-toggle request for userId: ${userId}, roleId: ${roleId}`, 'info');
+                
+                const response = await fetch(`/api/timer/pause-toggle?guildId=${guild}`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, roleId })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to toggle pause state');
+                }
+
+                const result = await response.json();
+                
+                addDebugLog(`✅ Pause-toggle successful. New state: ${result.paused ? 'PAUSED' : 'ACTIVE'}`, 'success');
+                addDebugLog(`Remaining time: ${result.formattedTime}`, 'info');
+                
+                // Update the button appearance
+                if (result.paused) {
+                    button.classList.add('paused');
+                    button.textContent = '▶️';
+                    button.title = 'Click to resume';
+                    showAlert(`Timer paused for ${userName}. Remaining: ${result.formattedTime}`, 'success');
+                } else {
+                    button.classList.remove('paused');
+                    button.textContent = '⏸️';
+                    button.title = 'Click to pause';
+                    showAlert(`Timer resumed for ${userName}. Remaining: ${result.formattedTime}`, 'success');
+                }
+                
+                // Refresh the dashboard to update all displays
+                loadDashboard();
+                
+            } catch (err) {
+                console.error('Error toggling pause:', err);
+                addDebugLog(`❌ Error: ${err.message}`, 'error');
+                showAlert(`Error: ${err.message}`, 'error');
+            }
+        }
+
         async function addNewTimer() {
             const userId = document.getElementById('newUser').value.trim();
             const minutes = parseInt(document.getElementById('newMinutes').value);
@@ -3888,6 +3974,9 @@
                         <td><span class="badge ${badge}">${status}</span></td>
                         <td class="action-column">
                             <div class="action-buttons">
+                                <button class="pause-btn ${timer.paused ? 'paused' : ''}" onclick="togglePauseTimer('${timer.userId}', '${timer.roleId}', event)" data-user="${timer.user}" data-user-id="${timer.userId}" data-role="${timer.role}" data-role-id="${timer.roleId}" title="${timer.paused ? 'Click to resume' : 'Click to pause'}">
+                                    ${timer.paused ? '▶️' : '⏸️'}
+                                </button>
                                 <button class="delete-btn" onclick="deleteTimer(${timer.id}, event)" data-user="${timer.user}" data-role="${timer.role}">✕</button>
                             </div>
                         </td>
