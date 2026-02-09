@@ -4050,7 +4050,8 @@
                     loadMemberCount()
                 ]);
                 initSearchableDropdown(); // Initialize the searchable dropdown
-                setInterval(loadDashboard, 30000);
+                // REMOVED: setInterval(loadDashboard, 30000) - was refreshing dashboard every 30s, disrupting user filters
+                // Users can now manually refresh via browser refresh or UI button if needed
                 setInterval(loadDropdownData, 60000); // Refresh dropdowns every minute
                 setInterval(loadMemberCount, 60 * 60 * 1000); // Refresh member count every hour (matches sync interval)
             }
