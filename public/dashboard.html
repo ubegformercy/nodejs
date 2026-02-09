@@ -2545,6 +2545,24 @@
                 console.log('[Dashboard] Updating lastUpdate...');
                 const lastUpdateEl = document.getElementById('lastUpdate');
                 if (lastUpdateEl) lastUpdateEl.textContent = new Date().toLocaleTimeString();
+                
+                // CRITICAL: Ensure tabbed view is visible on page load
+                // This fixes the issue where tabbed view shows empty on first load
+                const tabbedViewContainer = document.getElementById('tabbedView') || document.querySelector('.tabs-container');
+                if (tabbedViewContainer) {
+                    tabbedViewContainer.style.display = 'block';
+                    console.log('[Dashboard] ✓ Ensured tabbed view container is visible');
+                }
+                
+                // Also activate the first tab (Timers) if not already active
+                const firstTab = document.querySelector('.tab-panel');
+                if (firstTab && !firstTab.classList.contains('active')) {
+                    firstTab.classList.add('active');
+                    const firstButton = document.querySelector('.tabs-header .tab-button');
+                    if (firstButton) firstButton.classList.add('active');
+                    console.log('[Dashboard] ✓ Activated first tab');
+                }
+                
                 console.log('[Dashboard] ========== updateDashboard() COMPLETED SUCCESSFULLY ==========');
                 
             } catch (err) {
