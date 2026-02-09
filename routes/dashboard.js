@@ -170,11 +170,46 @@ router.get('/api/dashboard', requireAuth, requireGuildAccess, requireDashboardAc
     // Get timers for this guild only
     let allTimers = [];
     try {
-      const result = await db.pool.query(
+      // First, try to get timers where guild_id is explicitly set
+      let result = await db.pool.query(
         `SELECT * FROM role_timers WHERE guild_id = $1 AND expires_at > 0 ORDER BY expires_at ASC`,
         [guildId]
       );
       allTimers = result.rows || [];
+      
+      // If we got timers, we're good. If not, also check for NULL guild_id timers
+      // that might belong to this guild (legacy timers that haven't been backfilled)
+      if (allTimers.length === 0 && guild) {
+        console.log(`[Dashboard] No timers found with guild_id = ${guildId}, checking for legacy timers...`);
+        
+        // Get all guild role IDs for this guild
+        const guildRoleIds = new Set(guild.roles.cache.keys());
+        
+        // Get ALL timers with NULL guild_id and filter by role
+        const legacyResult = await db.pool.query(
+          `SELECT * FROM role_timers WHERE guild_id IS NULL AND expires_at > 0 ORDER BY expires_at ASC`
+        );
+        
+        const legacyTimers = legacyResult.rows || [];
+        
+        // Filter to only timers with roles in this guild
+        const matchingLegacyTimers = legacyTimers.filter(timer => guildRoleIds.has(timer.role_id));
+        
+        if (matchingLegacyTimers.length > 0) {
+          console.log(`[Dashboard] Found ${matchingLegacyTimers.length} legacy timers (guild_id = NULL) with roles in this guild`);
+          // Backfill guild_id for these timers
+          try {
+            await db.pool.query(
+              `UPDATE role_timers SET guild_id = $1 WHERE guild_id IS NULL AND role_id = ANY($2::varchar[])`,
+              [guildId, Array.from(guildRoleIds)]
+            );
+            console.log(`[Dashboard] ✓ Backfilled guild_id for legacy timers`);
+          } catch (err) {
+            console.error('[Dashboard] Error backfilling guild_id:', err.message);
+          }
+          allTimers = matchingLegacyTimers;
+        }
+      }
     } catch (err) {
       console.error('Error fetching timers:', err);
     }
