@@ -1572,7 +1572,9 @@ if (interaction.commandName === "removetime") {
           try {
             const member = await guild.members.fetch(timer.user_id).catch(() => null);
             if (member) {
-              timersList.push({ member, timer });
+              // Also fetch user registration data for in-game username
+              const registration = await db.getUserRegistration(guild.id, timer.user_id).catch(() => null);
+              timersList.push({ member, timer, registration });
             }
           } catch (err) {
             console.error(`Failed to fetch member ${timer.user_id}:`, err);
@@ -1610,51 +1612,73 @@ if (interaction.commandName === "removetime") {
           return aMs - bMs;
         });
 
-        // Build field list (max 25 fields per embed, but Discord recommends less)
-        const fields = [];
+        // Build compact list of members (one per line)
+        let membersList = [];
         let totalMembers = 0;
         let activeMembers = 0;
         let pausedMembers = 0;
+        let expiringMembers = 0;
 
-        for (const { member, timer } of timersList) {
+        for (const { member, timer, registration } of timersList) {
           totalMembers++;
+          
+          let remainingMs = Number(timer.expires_at) - Date.now();
+          if (timer.paused && timer.paused_remaining_ms) {
+            remainingMs = Number(timer.paused_remaining_ms);
+          }
+
           const isPaused = timer.paused;
           if (isPaused) pausedMembers++;
           else activeMembers++;
 
-          let remainingMs = Number(timer.expires_at) - Date.now();
-          if (isPaused && timer.paused_remaining_ms) {
-            remainingMs = Number(timer.paused_remaining_ms);
+          // Determine status and check for expiring soon (< 60 minutes)
+          let status;
+          if (isPaused) {
+            status = "⏸️ PAUSED";
+          } else if (remainingMs <= 0) {
+            status = "🔴 EXPIRED";
+          } else if (remainingMs < 60 * 60 * 1000) {
+            status = "🟡 EXPIRES SOON";
+            expiringMembers++;
+          } else {
+            status = "🟢 ACTIVE";
           }
 
-          const status = isPaused ? "⏸️ PAUSED" : remainingMs <= 0 ? "🔴 EXPIRED" : "🟢 ACTIVE";
           const timeText = remainingMs > 0 ? formatMs(remainingMs) : "0s";
           
-          // Limit to 20 members per embed (leave room for summary field)
-          if (fields.length < 20) {
-            // Use Discord nickname/display name instead of Roblox username
-            const displayName = member.nickname || member.user.globalName || member.user.username;
-            fields.push({
-              name: `${displayName}`,
-              value: `${status} • ${timeText}`,
-              inline: false
-            });
-          }
+          // Get Discord display name
+          const displayName = member.nickname || member.user.globalName || member.user.username;
+          
+          // Get in-game username from registration, or use Discord username as fallback
+          const inGameUsername = registration?.in_game_username || member.user.username;
+          
+          // Format: 🟢 ACTIVE • 3h 58m 10s • Haozinho - (tauan123456789090)
+          const line = `${status} • ${timeText} • ${displayName} - (${inGameUsername})`;
+          membersList.push(line);
+
+          // Limit to 30 members per embed (more compact, single-line format)
+          if (membersList.length >= 30) break;
         }
+
+        // Create description field with all members
+        const description = membersList.length > 0 
+          ? membersList.join('\n')
+          : "No members have timers for this role";
 
         const embed = new EmbedBuilder()
           .setColor(0x2ECC71) // green
           .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
           .setTitle(`${roleOption.name} - Status Report`)
+          .setDescription(description)
           .setTimestamp(new Date())
-          .addFields(...fields)
           .addFields(
             { name: "━━━━━━━━━━━━━━━", value: "Summary", inline: false },
             { name: "Total Members", value: `${totalMembers}`, inline: true },
             { name: "Active ⏱️", value: `${activeMembers}`, inline: true },
+            { name: "Expires Soon 🟡", value: `${expiringMembers}`, inline: true },
             { name: "Paused ⏸️", value: `${pausedMembers}`, inline: true }
           )
-          .setFooter({ text: `BoostMon • Showing ${Math.min(timersList.length, 20)} members` });
+          .setFooter({ text: `BoostMon • Showing ${Math.min(membersList.length, 30)} members` });
 
         return interaction.editReply({ embeds: [embed] });
       }

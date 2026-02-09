@@ -1089,6 +1089,19 @@ async function registerUser(data) {
   }
 }
 
+async function getUserRegistration(guildId, discordId) {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM user_registrations WHERE guild_id = $1 AND discord_id = $2`,
+      [guildId, discordId]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    console.error("getUserRegistration error:", err);
+    return null;
+  }
+}
+
 async function closePool() {
   await pool.end();
   console.log("Database connection pool closed");
@@ -1156,6 +1169,7 @@ module.exports = {
   
   // User registration
   registerUser,
+  getUserRegistration,
   
   closePool,
 };
