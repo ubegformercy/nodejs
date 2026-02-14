@@ -196,6 +196,13 @@ async function initDatabase() {
         ALTER TABLE rolestatus_schedules 
         ADD COLUMN IF NOT EXISTS report_sort_order VARCHAR(50) DEFAULT 'descending';
       `);
+      
+      // Ensure all existing records have descending as default (fix any old ascending values)
+      await client.query(`
+        UPDATE rolestatus_schedules 
+        SET report_sort_order = 'descending' 
+        WHERE report_sort_order IS NULL OR report_sort_order NOT IN ('ascending', 'descending');
+      `);
     } catch (err) {
       if (!err.message.includes("already exists")) {
         console.warn("Migration info:", err.message);
@@ -711,7 +718,10 @@ async function getReportSortOrder(guildId) {
       "SELECT report_sort_order FROM rolestatus_schedules WHERE guild_id = $1 AND enabled = true LIMIT 1",
       [guildId]
     );
-    return result.rows[0]?.report_sort_order || 'descending';
+    const order = result.rows[0]?.report_sort_order;
+    // Default to 'descending' for null, undefined, or any unexpected values
+    // Explicitly accept only 'ascending' or 'descending'
+    return order === 'ascending' ? 'ascending' : 'descending';
   } catch (err) {
     console.error("getReportSortOrder error:", err);
     return 'descending';
