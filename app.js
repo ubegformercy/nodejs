@@ -1619,7 +1619,7 @@ if (interaction.commandName === "removetime") {
           return interaction.editReply({ embeds: [embed] });
         }
 
-        // Sort by time remaining (ascending - expires soonest first)
+        // Sort by time remaining (get sort order from database)
         timersList.sort((a, b) => {
           let aMs = Number(a.timer.expires_at) - Date.now();
           let bMs = Number(b.timer.expires_at) - Date.now();
@@ -1634,12 +1634,19 @@ if (interaction.commandName === "removetime") {
           return aMs - bMs;
         });
 
-        // Build compact list of members (one per line)
+        // Get the sort order from database and apply if descending (default)
+        const sortOrder = await db.getReportSortOrder(guild.id).catch(() => 'descending');
+        if (sortOrder === 'descending') {
+          timersList.reverse();
+        }
+
+        // Build compact list of members (one per line) with medal awards for top 3
         let membersList = [];
         let totalMembers = 0;
         let activeMembers = 0;
         let pausedMembers = 0;
         let expiringMembers = 0;
+        let memberCount = 0; // Track position for medal awards
 
         for (const { member, timer, registration } of timersList) {
           totalMembers++;
@@ -1674,9 +1681,13 @@ if (interaction.commandName === "removetime") {
           // Get in-game username from registration, or use Discord username as fallback
           const inGameUsername = registration?.in_game_username || member.user.username;
           
-          // Format: 🟢 ACTIVE • 3h 58m 10s • Haozinho - (tauan123456789090)
-          const line = `${status} • ${timeText} • ${displayName} - (${inGameUsername})`;
+          // Award rank medals to top 3 boosters (based on sorted position - longest remaining time)
+          const rankMedal = memberCount === 0 ? '🥇' : memberCount === 1 ? '🥈' : memberCount === 2 ? '🥉' : '  ';
+          
+          // Format: 🥇 🟢 ACTIVE • 3h 58m 10s • Haozinho - (tauan123456789090)
+          const line = `${rankMedal} ${status} • ${timeText} • ${displayName} - (${inGameUsername})`;
           membersList.push(line);
+          memberCount++;
 
           // Limit to 30 members per embed (more compact, single-line format)
           if (membersList.length >= 30) break;
@@ -1688,20 +1699,23 @@ if (interaction.commandName === "removetime") {
           ? '\n' + membersList.join(`\n${separator}\n`)
           : "\nNo members have timers for this role";
 
+        // Create epic leaderboard title
+        const leaderboardTitle = `【⭐】${roleOption.name} Leaderboard【⭐】`;
+
         const embed = new EmbedBuilder()
           .setColor(0x2ECC71) // green
           .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
-          .setTitle(`${roleOption.name} - Status Report`)
+          .setTitle(leaderboardTitle)
           .setDescription(description)
           .setTimestamp(new Date())
           .addFields(
             { 
-              name: "Summary", 
+              name: "📊 Summary", 
               value: `\`\`\`Total  |  Active  |  Expires Soon  |  Paused\n${String(totalMembers).padEnd(7)}|  ${String(activeMembers).padEnd(8)}|  ${String(expiringMembers).padEnd(14)}|  ${pausedMembers}\`\`\``,
               inline: false 
             }
           )
-          .setFooter({ text: `BoostMon • Showing ${Math.min(membersList.length, 30)} members` });
+          .setFooter({ text: `BoostMon • Showing ${Math.min(membersList.length, 30)} members | Sort: ${sortOrder}` });
 
         return interaction.editReply({ embeds: [embed] });
       }
