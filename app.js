@@ -1621,6 +1621,7 @@ if (interaction.commandName === "removetime") {
 
         // Get the sort order from database (default descending)
         const sortOrder = await db.getReportSortOrder(guild.id).catch(() => 'descending');
+        console.log(`[/rolestatus view] sortOrder: "${sortOrder}", typeof: ${typeof sortOrder}, timersList length: ${timersList.length}`);
 
         // Sort by time remaining based on sort order preference
         timersList.sort((a, b) => {
@@ -1634,11 +1635,12 @@ if (interaction.commandName === "removetime") {
             bMs = Number(b.timer.paused_remaining_ms);
           }
           
-          // Return based on sort order
+          // DESCENDING = largest first (longest boost times at top)
+          // ASCENDING = smallest first (shortest boost times at top)
           if (sortOrder === 'ascending') {
-            return aMs - bMs; // ascending: smallest first
+            return aMs - bMs; // ascending: smallest first (shortest times at top)
           } else {
-            return bMs - aMs; // descending: largest first (default - top boosters at top)
+            return bMs - aMs; // descending: largest first (longest times at top)
           }
         });
 
@@ -2196,8 +2198,8 @@ if (interaction.commandName === "removetime") {
 
         const sortEmoji = sortOrder === 'ascending' ? '🔼' : '🔽';
         const sortDescription = sortOrder === 'ascending' 
-          ? 'Expiring soonest appears first' 
-          : 'Expiring latest appears first';
+          ? 'Shortest boost times first (expiring soonest)' 
+          : 'Longest boost times first (top boosters at top)';
 
         const embed = new EmbedBuilder()
           .setColor(0x3498DB)
@@ -2779,6 +2781,7 @@ async function executeScheduledRolestatus(guild, now) {
 
         // Get the sort order from database (default descending)
         const sortOrder = await db.getReportSortOrder(guild.id).catch(() => 'descending');
+        console.log(`[/rolestatus schedule] sortOrder: "${sortOrder}", typeof: ${typeof sortOrder}, timersList length: ${timersList.length}`);
 
         // Sort by time remaining based on sort order preference
         timersList.sort((a, b) => {
@@ -2792,11 +2795,12 @@ async function executeScheduledRolestatus(guild, now) {
             bMs = Number(b.timer.paused_remaining_ms);
           }
           
-          // Return based on sort order
+          // DESCENDING = largest first (longest boost times at top)
+          // ASCENDING = smallest first (shortest boost times at top)
           if (sortOrder === 'ascending') {
-            return aMs - bMs; // ascending: smallest first
+            return aMs - bMs; // ascending: smallest first (shortest times at top)
           } else {
-            return bMs - aMs; // descending: largest first (default - top boosters at top)
+            return bMs - aMs; // descending: largest first (longest times at top)
           }
         });
 
