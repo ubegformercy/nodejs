@@ -18,12 +18,6 @@ module.exports = async function handleStreak(interaction) {
       return interaction.editReply({ content: "⛔ Only administrators can use this command.", ephemeral: true });
     }
 
-    if (subcommand === "list-size") {
-      const size = interaction.options.getInteger("size", true);
-      await db.setStreakLeaderboardSize(guild.id, size);
-      return interaction.editReply({ content: `✅ Streak leaderboard will now show **${size}** members.` });
-    }
-
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount") || 1;
 

@@ -1,66 +1,79 @@
-// discord/commands.js — All SlashCommandBuilder definitions
+// discord/commands.js — All SlashCommandBuilder definitions (7 consolidated commands)
 const { SlashCommandBuilder, ChannelType } = require("discord.js");
 
 function getCommands() {
   return [
+    // ── /timer (consolidates settime, addtime, removetime, cleartime, pausetime, resumetime, showtime) ──
     new SlashCommandBuilder()
-      .setName("settime")
-      .setDescription("Set a user's timed role time to exactly N minutes from now and assign the role.")
-      .addUserOption((o) => o.setName("user").setDescription("User to set time for").setRequired(true))
-      .addIntegerOption((o) =>
-        o.setName("minutes").setDescription("Minutes to set").setRequired(true).setMinValue(1)
+      .setName("timer")
+      .setDescription("Manage timed roles for users.")
+      .addSubcommand((s) =>
+        s
+          .setName("set")
+          .setDescription("Set a user's timed role time to exactly N minutes from now and assign the role.")
+          .addUserOption((o) => o.setName("user").setDescription("User to set time for").setRequired(true))
+          .addIntegerOption((o) =>
+            o.setName("minutes").setDescription("Minutes to set").setRequired(true).setMinValue(1)
+          )
+          .addRoleOption((o) => o.setName("role").setDescription("Role to grant").setRequired(true))
+          .addChannelOption((o) =>
+            o
+              .setName("channel")
+              .setDescription("Where expiry warnings should be sent (optional). If omitted, warnings are DMed.")
+              .setRequired(false)
+              .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+          )
       )
-      .addRoleOption((o) => o.setName("role").setDescription("Role to grant").setRequired(true))
-      .addChannelOption((o) =>
-        o
-          .setName("channel")
-          .setDescription("Where expiry warnings should be sent (optional). If omitted, warnings are DMed.")
-          .setRequired(false)
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      .addSubcommand((s) =>
+        s
+          .setName("add")
+          .setDescription("Add minutes to a user's timed role and assign the role.")
+          .addUserOption((o) => o.setName("user").setDescription("User to add time to").setRequired(true))
+          .addIntegerOption((o) =>
+            o.setName("minutes").setDescription("Minutes to add").setRequired(true).setMinValue(1)
+          )
+          .addRoleOption((o) => o.setName("role").setDescription("Role to add time to (optional)").setRequired(false))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("remove")
+          .setDescription("Remove minutes from a user's timed role.")
+          .addUserOption((o) => o.setName("user").setDescription("User to modify").setRequired(true))
+          .addIntegerOption((o) =>
+            o.setName("minutes").setDescription("Minutes to remove").setRequired(true).setMinValue(1)
+          )
+          .addRoleOption((o) => o.setName("role").setDescription("Role to remove time from (optional)").setRequired(false))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("clear")
+          .setDescription("Clear a user's timed role timer and remove the role.")
+          .addUserOption((o) => o.setName("user").setDescription("User to clear").setRequired(true))
+          .addRoleOption((o) => o.setName("role").setDescription("Role to clear (optional)").setRequired(false))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("pause")
+          .setDescription("Pause a user's timed role timer (stops countdown until resumed).")
+          .addUserOption((o) => o.setName("user").setDescription("User to pause").setRequired(true))
+          .addRoleOption((o) => o.setName("role").setDescription("Role to pause (optional)").setRequired(false))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("resume")
+          .setDescription("Resume a paused timed role (continues from where it was paused).")
+          .addUserOption((o) => o.setName("user").setDescription("User to resume").setRequired(true))
+          .addRoleOption((o) => o.setName("role").setDescription("Role to resume").setRequired(true))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("show")
+          .setDescription("Show remaining timed role time for a user (and optional role).")
+          .addUserOption((o) => o.setName("user").setDescription("User to check (default: you)").setRequired(false))
+          .addRoleOption((o) => o.setName("role").setDescription("Role to check (optional)").setRequired(false))
       ),
 
-    new SlashCommandBuilder()
-      .setName("addtime")
-      .setDescription("Add minutes to a user's timed role and assign the role.")
-      .addUserOption((o) => o.setName("user").setDescription("User to add time to").setRequired(true))
-      .addIntegerOption((o) =>
-        o.setName("minutes").setDescription("Minutes to add").setRequired(true).setMinValue(1)
-      )
-      .addRoleOption((o) => o.setName("role").setDescription("Role to add time to (optional)").setRequired(false)),
-
-    new SlashCommandBuilder()
-      .setName("pausetime")
-      .setDescription("Pause a user's timed role timer (stops countdown until resumed).")
-      .addUserOption((o) => o.setName("user").setDescription("User to pause").setRequired(true))
-      .addRoleOption((o) => o.setName("role").setDescription("Role to pause (optional)").setRequired(false)),
-
-    new SlashCommandBuilder()
-      .setName("resumetime")
-      .setDescription("Resume a paused timed role (continues from where it was paused).")
-      .addUserOption((o) => o.setName("user").setDescription("User to resume").setRequired(true))
-      .addRoleOption((o) => o.setName("role").setDescription("Role to resume").setRequired(true)),
-
-    new SlashCommandBuilder()
-      .setName("removetime")
-      .setDescription("Remove minutes from a user's timed role.")
-      .addUserOption((o) => o.setName("user").setDescription("User to modify").setRequired(true))
-      .addIntegerOption((o) =>
-        o.setName("minutes").setDescription("Minutes to remove").setRequired(true).setMinValue(1)
-      )
-      .addRoleOption((o) => o.setName("role").setDescription("Role to remove time from (optional)").setRequired(false)),
-
-    new SlashCommandBuilder()
-      .setName("cleartime")
-      .setDescription("Clear a user's timed role timer and remove the role.")
-      .addUserOption((o) => o.setName("user").setDescription("User to clear").setRequired(true))
-      .addRoleOption((o) => o.setName("role").setDescription("Role to clear (optional)").setRequired(false)),
-
-    new SlashCommandBuilder()
-      .setName("showtime")
-      .setDescription("Show remaining timed role time for a user (and optional role).")
-      .addUserOption((o) => o.setName("user").setDescription("User to check (default: you)").setRequired(false))
-      .addRoleOption((o) => o.setName("role").setDescription("Role to check (optional)").setRequired(false)),
-
+    // ── /rolestatus (unchanged) ──
     new SlashCommandBuilder()
       .setName("rolestatus")
       .setDescription("View role members or manage automated role status reports.")
@@ -109,6 +122,7 @@ function getCommands() {
           )
       ),
 
+    // ── /autopurge (unchanged) ──
     new SlashCommandBuilder()
       .setName("autopurge")
       .setDescription("Automatically purge bot or user messages from a channel at set intervals.")
@@ -157,37 +171,10 @@ function getCommands() {
           .setDescription("Show all auto-purge settings in this server")
       ),
 
+    // ── /setup (reports, streak-roles, streak-leaderboard-size — dashboard access removed) ──
     new SlashCommandBuilder()
       .setName("setup")
-      .setDescription("Configure dashboard access permissions")
-      .addSubcommand((s) =>
-        s
-          .setName("grant")
-          .setDescription("Grant a role dashboard access")
-          .addRoleOption((o) => o.setName("role").setDescription("Role to grant access to").setRequired(true))
-      )
-      .addSubcommand((s) =>
-        s
-          .setName("revoke")
-          .setDescription("Revoke dashboard access from a role")
-          .addRoleOption((o) => o.setName("role").setDescription("Role to revoke access from").setRequired(true))
-      )
-      .addSubcommand((s) =>
-        s
-          .setName("list")
-          .setDescription("List all roles with dashboard access")
-      )
-      .addSubcommand((s) =>
-        s
-          .setName("restrict")
-          .setDescription("Enable restrict mode and whitelist a role for dashboard access")
-          .addRoleOption((o) => o.setName("role").setDescription("Role to whitelist").setRequired(true))
-      )
-      .addSubcommand((s) =>
-        s
-          .setName("unrestrict")
-          .setDescription("Disable restrict mode and revert to normal access")
-      )
+      .setDescription("Configure server settings for BoostMon.")
       .addSubcommand((s) =>
         s
           .setName("reports")
@@ -227,8 +214,21 @@ function getCommands() {
                 { name: "Remove", value: "remove" }
               )
           )
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("streak-leaderboard-size")
+          .setDescription("Set how many members to show on the streak leaderboard")
+          .addIntegerOption((o) =>
+            o.setName("size")
+              .setDescription("Number of members to display (1-50)")
+              .setRequired(true)
+              .setMinValue(1)
+              .setMaxValue(50)
+          )
       ),
 
+    // ── /streak (status, leaderboard, admin grant-save/remove-save/set — list-size moved to /setup) ──
     new SlashCommandBuilder()
       .setName("streak")
       .setDescription("View or manage boost streaks")
@@ -262,13 +262,9 @@ function getCommands() {
               .addUserOption((o) => o.setName("user").setDescription("User to set streak for").setRequired(true))
               .addIntegerOption((o) => o.setName("days").setDescription("Number of streak days to set").setRequired(true).setMinValue(0))
           )
-          .addSubcommand((s) =>
-            s.setName("list-size")
-              .setDescription("Set how many members to show on the streak leaderboard")
-              .addIntegerOption((o) => o.setName("size").setDescription("Number of members to display (1-50)").setRequired(true).setMinValue(1).setMaxValue(50))
-          )
       ),
 
+    // ── /boostqueue (unchanged) ──
     new SlashCommandBuilder()
       .setName("boostqueue")
       .setDescription("Manage the boost queue for users waiting for boosts.")
@@ -310,33 +306,18 @@ function getCommands() {
           )
       ),
 
+    // ── /register (merged: flat command with optional user param) ──
     new SlashCommandBuilder()
       .setName("register")
-      .setDescription("Register Discord users with their in-game information")
-      .addSubcommand((s) =>
-        s
-          .setName("user")
-          .setDescription("(Admin/Owner only) Register any user with their in-game info")
-          .addUserOption((o) =>
-            o.setName("discorduser").setDescription("Discord user to register").setRequired(true)
-          )
-          .addStringOption((o) =>
-            o.setName("username").setDescription("In-game username").setRequired(true)
-          )
-          .addStringOption((o) =>
-            o.setName("display").setDescription("Display name").setRequired(true)
-          )
+      .setDescription("Register yourself (or another user) with in-game info")
+      .addStringOption((o) =>
+        o.setName("username").setDescription("In-game username").setRequired(true)
       )
-      .addSubcommand((s) =>
-        s
-          .setName("in-game")
-          .setDescription("Register yourself with your in-game info")
-          .addStringOption((o) =>
-            o.setName("username").setDescription("Your in-game username").setRequired(true)
-          )
-          .addStringOption((o) =>
-            o.setName("display").setDescription("Your display name").setRequired(true)
-          )
+      .addStringOption((o) =>
+        o.setName("display").setDescription("Display name").setRequired(true)
+      )
+      .addUserOption((o) =>
+        o.setName("user").setDescription("User to register (admin only, defaults to yourself)").setRequired(false)
       ),
   ];
 }

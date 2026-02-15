@@ -1,12 +1,6 @@
 // discord/handlers/index.js — Command handler router map
 const handlers = {
-  pausetime:  require("./pausetime"),
-  resumetime: require("./resumetime"),
-  settime:    require("./settime"),
-  addtime:    require("./addtime"),
-  removetime: require("./removetime"),
-  cleartime:  require("./cleartime"),
-  showtime:   require("./showtime"),
+  timer:      require("./timer"),
   rolestatus: require("./rolestatus"),
   autopurge:  require("./autopurge"),
   setup:      require("./setup"),
