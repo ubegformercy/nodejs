@@ -69,16 +69,34 @@ module.exports = async function handleStreak(interaction) {
       return interaction.editReply({ content: "No active boost streaks found in this server." });
     }
 
-    const fields = leaderboard.map((entry, index) => {
+    const fields = [];
+    for (let index = 0; index < leaderboard.length; index++) {
+      const entry = leaderboard[index];
       const days = Math.floor((Date.now() - new Date(entry.streak_start_at)) / (24 * 60 * 60 * 1000));
       const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "🔹";
-      const displayName = entry.display_name || entry.username || `<@${entry.user_id}>`;
-      return {
-        name: `${medal} #${index + 1} - ${displayName}`,
+
+      // Resolve display name the same way /rolestatus view does
+      let displayName = entry.display_name || entry.username || `<@${entry.user_id}>`;
+      let inGameUsername = null;
+      try {
+        const member = await guild.members.fetch(entry.user_id).catch(() => null);
+        if (member) {
+          displayName = member.nickname || member.user.globalName || member.user.username;
+          const registration = await db.getUserRegistration(guild.id, entry.user_id).catch(() => null);
+          inGameUsername = registration?.in_game_username || null;
+        }
+      } catch (_) { /* keep fallback */ }
+
+      const nameText = inGameUsername
+        ? `${displayName} - (${inGameUsername})`
+        : displayName;
+
+      fields.push({
+        name: `${medal} #${index + 1} - ${nameText}`,
         value: `**${days} Days** • ${entry.save_tokens} Saves`,
         inline: false
-      };
-    });
+      });
+    }
 
     const embed = new EmbedBuilder()
       .setColor(0xF1C40F)
