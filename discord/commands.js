@@ -256,6 +256,12 @@ function getCommands() {
               .addUserOption((o) => o.setName("user").setDescription("User to remove save from").setRequired(true))
               .addIntegerOption((o) => o.setName("amount").setDescription("Number of saves (default: 1)").setRequired(false).setMinValue(1))
           )
+          .addSubcommand((s) =>
+            s.setName("set")
+              .setDescription("Set a user's streak to a specific number of days")
+              .addUserOption((o) => o.setName("user").setDescription("User to set streak for").setRequired(true))
+              .addIntegerOption((o) => o.setName("days").setDescription("Number of streak days to set").setRequired(true).setMinValue(0))
+          )
       ),
 
     new SlashCommandBuilder()

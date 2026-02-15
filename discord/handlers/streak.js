@@ -27,6 +27,32 @@ module.exports = async function handleStreak(interaction) {
     } else if (subcommand === "remove-save") {
       await db.updateUserStreakSaves(guild.id, targetUser.id, -amount);
       return interaction.editReply({ content: `✅ Removed ${amount} save token(s) from ${targetUser}.` });
+    } else if (subcommand === "set") {
+      const days = interaction.options.getInteger("days", true);
+      const now = new Date();
+      const streakStart = days > 0
+        ? new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+        : null;
+
+      await db.upsertUserStreak(guild.id, targetUser.id, {
+        streak_start_at: streakStart,
+        degradation_started_at: null,
+      });
+
+      // Sync streak roles if applicable
+      const streakRoles = await db.getStreakRoles(guild.id);
+      if (streakRoles.length > 0) {
+        const member = await guild.members.fetch(targetUser.id).catch(() => null);
+        if (member) {
+          const { syncStreakRoles } = require("../../services/streak");
+          await syncStreakRoles(member, days, streakRoles);
+        }
+      }
+
+      if (days === 0) {
+        return interaction.editReply({ content: `✅ Reset ${targetUser}'s boost streak to **0 days**.` });
+      }
+      return interaction.editReply({ content: `✅ Set ${targetUser}'s boost streak to **${days} days** (started <t:${Math.floor(streakStart.getTime() / 1000)}:D>).` });
     }
   }
 

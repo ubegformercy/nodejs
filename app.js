@@ -131,6 +131,36 @@ client.once("ready", async () => {
     console.error("[Backfill] Error:", err.message);
   }
 
+  // Backfill streak records for users with active timers but no streak row
+  try {
+    const result = await db.pool.query(
+      `SELECT DISTINCT rt.guild_id, rt.user_id, MIN(rt.created_at) AS earliest_timer
+       FROM role_timers rt
+       WHERE rt.guild_id IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM user_streaks us
+           WHERE us.guild_id = rt.guild_id AND us.user_id = rt.user_id
+         )
+       GROUP BY rt.guild_id, rt.user_id`
+    );
+
+    if (result.rows.length > 0) {
+      for (const row of result.rows) {
+        const streakStart = row.earliest_timer || new Date();
+        await db.upsertUserStreak(row.guild_id, row.user_id, {
+          streak_start_at: streakStart,
+          save_tokens: 0,
+          last_save_earned_at: streakStart,
+        });
+      }
+      console.log(`[Streak Backfill] Created streak records for ${result.rows.length} users with active timers`);
+    } else {
+      console.log(`[Streak Backfill] All users with active timers already have streak records`);
+    }
+  } catch (err) {
+    console.error("[Streak Backfill] Error:", err.message);
+  }
+
   // ===== TIMER EXPIRATION CHECKER =====
   setInterval(async () => {
     try {
