@@ -71,33 +71,28 @@ function getCommands() {
           .setDescription("Show remaining timed role time for a user (and optional role).")
           .addUserOption((o) => o.setName("user").setDescription("User to check (default: you)").setRequired(false))
           .addRoleOption((o) => o.setName("role").setDescription("Role to check (optional)").setRequired(false))
-      ),
-
-    // ── /rolestatus (unchanged) ──
-    new SlashCommandBuilder()
-      .setName("rolestatus")
-      .setDescription("View role members or manage automated role status reports.")
-      .addSubcommand((s) =>
-        s
-          .setName("view")
-          .setDescription("Show all users with a specific role and their remaining times.")
-          .addRoleOption((o) => o.setName("role").setDescription("Role to check").setRequired(true))
       )
       .addSubcommandGroup((g) =>
         g
           .setName("schedule")
-          .setDescription("Manage automated role status reports")
+          .setDescription("Manage automated timer reports posted to a channel")
           .addSubcommand((s) =>
             s
               .setName("set")
-              .setDescription("Start automatic role status reports")
+              .setDescription("Create or update an automated timer report for a role")
               .addRoleOption((o) => o.setName("role").setDescription("Role to monitor").setRequired(true))
-              .addChannelOption((o) => o.setName("channel").setDescription("Channel to post reports").setRequired(true))
+              .addChannelOption((o) =>
+                o
+                  .setName("channel")
+                  .setDescription("Channel to post reports (required when enabling)")
+                  .setRequired(false)
+                  .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+              )
               .addIntegerOption((o) =>
                 o
                   .setName("interval")
-                  .setDescription("Minutes between reports")
-                  .setRequired(true)
+                  .setDescription("Minutes between reports (required when enabling)")
+                  .setRequired(false)
                   .setMinValue(1)
               )
               .addIntegerOption((o) =>
@@ -108,17 +103,21 @@ function getCommands() {
                   .setMinValue(0)
                   .setMaxValue(100)
               )
-          )
-          .addSubcommand((s) =>
-            s
-              .setName("disable")
-              .setDescription("Stop automated reports for a role")
-              .addRoleOption((o) => o.setName("role").setDescription("Role to stop monitoring").setRequired(true))
+              .addStringOption((o) =>
+                o
+                  .setName("enabled")
+                  .setDescription("Turn the schedule on or off (default: on)")
+                  .setRequired(false)
+                  .addChoices(
+                    { name: "On", value: "on" },
+                    { name: "Off", value: "off" }
+                  )
+              )
           )
           .addSubcommand((s) =>
             s
               .setName("list")
-              .setDescription("Show all active automated role status reports in this server")
+              .setDescription("Show all active automated timer reports in this server")
           )
       ),
 
