@@ -57,6 +57,11 @@ async function cleanupAndWarn() {
       const me = await guild.members.fetchMe().catch(() => null);
       const canManage = Boolean(me?.permissions?.has(PermissionFlagsBits.ManageRoles));
 
+      // ── AUTO-RESUME EXPIRED PAUSES ──
+      await db.autoResumeExpiredPauses(guildId).catch(err => {
+        console.error(`[Cleanup] autoResumeExpiredPauses failed for guild ${guildId}:`, err);
+      });
+
       for (const entry of timersByGuild[guildId]) {
         const userId = entry.user_id;
         const roleId = entry.role_id;

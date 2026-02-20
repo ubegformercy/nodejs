@@ -136,10 +136,16 @@ module.exports = async function handlePausetime(interaction) {
     });
   }
 
-  // Pause with "user" type
-  await db.pauseTimerWithType(targetUser.id, roleIdToPause, "user", durationMinutes);
+  // Pause with "user" type and get the pause result with remaining time
+  const pauseResult = await db.pauseTimerWithType(targetUser.id, roleIdToPause, "user", durationMinutes);
+  
+  if (!pauseResult) {
+    return interaction.editReply({
+      content: `Failed to pause ${targetUser}'s timer for **${roleName}**. The timer may already be paused.`,
+    });
+  }
 
-  const remainingMs = Number(entry?.paused_remaining_ms || 0) || await db.getTimerRemaining(targetUser.id, roleIdToPause);
+  const remainingMs = Number(pauseResult.remainingMs || 0);
   const durationInfo = durationMinutes ? ` for ${durationMinutes} minute(s)` : " indefinitely";
 
   const embed = new EmbedBuilder()

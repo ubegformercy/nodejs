@@ -544,12 +544,15 @@ async function resumeTimer(userId, roleId) {
 // ===== ADVANCED PAUSE/RESUME (with pause_type tracking) =====
 
 async function pauseTimerWithType(userId, roleId, pauseType, durationMinutes = null) {
+  // Pause a timer with a specific pause type (global, user, role, etc.)
+  // HIERARCHY: global > user (can't override global with user pause)
   try {
     const timer = await getTimerForRole(userId, roleId);
     if (!timer) return null;
 
-    // Don't override if already paused (unless it's a different type, but we'll keep it simple)
-    if (timer.paused) {
+    // Don't override if already paused with a higher priority type
+    if (timer.paused && timer.pause_type === "global" && pauseType !== "global") {
+      // Can't override a global pause with a user pause
       return null;
     }
 
@@ -638,14 +641,30 @@ async function getTimersForUserRole(userId, roleId, guildId) {
 
 async function getGuildTimers(guildId) {
   // Get all timers in a guild (used for global pause/resume)
+  // Only return NON-PAUSED timers with active expiry
   try {
+    const now = Date.now();
     const result = await pool.query(
-      "SELECT * FROM role_timers WHERE guild_id = $1 AND expires_at > CURRENT_TIMESTAMP",
-      [guildId]
+      "SELECT * FROM role_timers WHERE guild_id = $1 AND expires_at > $2 AND paused = false",
+      [guildId, now]
     );
     return result.rows;
   } catch (err) {
     console.error("getGuildTimers error:", err);
+    return [];
+  }
+}
+
+async function getGuildPausedTimers(guildId) {
+  // Get all PAUSED timers in a guild (used for global resume)
+  try {
+    const result = await pool.query(
+      "SELECT * FROM role_timers WHERE guild_id = $1 AND paused = true",
+      [guildId]
+    );
+    return result.rows;
+  } catch (err) {
+    console.error("getGuildPausedTimers error:", err);
     return [];
   }
 }
@@ -1680,6 +1699,7 @@ module.exports = {
   autoResumeExpiredPauses,
   getTimersForUserRole,
   getGuildTimers,
+  getGuildPausedTimers,
   getTimerRemaining,
   getTimerExpiry,
   markWarningAsSent,

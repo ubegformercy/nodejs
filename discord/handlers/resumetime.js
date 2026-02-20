@@ -32,9 +32,9 @@ module.exports = async function handleResumetime(interaction) {
       });
     }
 
-    // Fetch all timers in guild that are paused with "global" type
-    const globalPausedTimers = await db.getGuildTimers(guild.id);
-    const filtered = globalPausedTimers.filter(t => t.pause_type === "global");
+    // Fetch all PAUSED timers in guild that are paused with "global" type
+    const pausedTimers = await db.getGuildPausedTimers(guild.id);
+    const filtered = pausedTimers.filter(t => t.pause_type === "global");
 
     if (filtered.length === 0) {
       return interaction.editReply({
