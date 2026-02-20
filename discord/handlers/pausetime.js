@@ -12,20 +12,12 @@ module.exports = async function handlePausetime(interaction) {
   }
 
   const guild = interaction.guild;
-  const targetUser = interaction.options.getUser("user", false); // optional
+  const subcommand = interaction.options.getSubcommand(); // "global" or "user"
+  const durationMinutes = interaction.options.getInteger("duration", true); // required
   const roleOption = interaction.options.getRole("role", false); // optional
-  const durationMinutes = interaction.options.getInteger("duration"); // optional
-  const isGlobal = interaction.options.getBoolean("global") || false; // optional
-
-  // ── VALIDATE: Must provide user for user pause, or global flag for global pause ──
-  if (!targetUser && !isGlobal) {
-    return interaction.editReply({
-      content: "You must either specify a **user** to pause their timer(s), or use the **global** flag to pause all timers in this server.",
-    });
-  }
 
   // ── GLOBAL PAUSE (pause all or all with a specific role) ──
-  if (isGlobal) {
+  if (subcommand === "global") {
     // Check if user has Manage Guild permission
     if (!interaction.memberPermissions?.has("ManageGuild")) {
       return interaction.editReply({
@@ -57,7 +49,7 @@ module.exports = async function handlePausetime(interaction) {
     }
 
     const roleInfo = roleOption ? ` for **${roleOption.name}**` : "";
-    const durationInfo = durationMinutes ? ` for ${durationMinutes} minute(s)` : " indefinitely";
+    const durationInfo = ` for ${durationMinutes} minute(s)`;
 
     const embed = new EmbedBuilder()
       .setColor(0xF1C40F) // yellow = paused
@@ -76,93 +68,93 @@ module.exports = async function handlePausetime(interaction) {
   }
 
   // ── USER PAUSE (pause specific user's timer(s)) ──
-  if (!targetUser) {
-    return interaction.editReply({
-      content: "Target user is required for user pause.",
-    });
-  }
+  if (subcommand === "user") {
+    const targetUser = interaction.options.getUser("user", true); // required
 
-  let member;
-  try {
-    member = await guild.members.fetch(targetUser.id);
-  } catch {
-    return interaction.editReply({
-      content: `Could not fetch ${targetUser} from this server.`,
-    });
-  }
-
-  // Get timers for this user
-  const timers = await db.getTimersForUser(targetUser.id);
-  const timedRoleIds = timers.map(t => t.role_id);
-
-  if (timedRoleIds.length === 0) {
-    return interaction.editReply({ content: `${targetUser} has no active timed roles.` });
-  }
-
-  let roleIdToPause = null;
-
-  if (roleOption) {
-    roleIdToPause = roleOption.id;
-    if (!timedRoleIds.includes(roleIdToPause)) {
+    let member;
+    try {
+      member = await guild.members.fetch(targetUser.id);
+    } catch {
       return interaction.editReply({
-        content: `${targetUser} has no saved time for **${roleOption.name}**.`,
+        content: `Could not fetch ${targetUser} from this server.`,
       });
     }
-  } else {
-    // Auto-select: prefer a role the member currently has, else first in list
-    const matching = timedRoleIds.find((rid) => member.roles.cache.has(rid));
-    roleIdToPause = matching || timedRoleIds[0];
+
+    // Get timers for this user
+    const timers = await db.getTimersForUser(targetUser.id);
+    const timedRoleIds = timers.map(t => t.role_id);
+
+    if (timedRoleIds.length === 0) {
+      return interaction.editReply({ content: `${targetUser} has no active timed roles.` });
+    }
+
+    let roleIdToPause = null;
+
+    if (roleOption) {
+      roleIdToPause = roleOption.id;
+      if (!timedRoleIds.includes(roleIdToPause)) {
+        return interaction.editReply({
+          content: `${targetUser} has no saved time for **${roleOption.name}**.`,
+        });
+      }
+    } else {
+      // Auto-select: prefer a role the member currently has, else first in list
+      const matching = timedRoleIds.find((rid) => member.roles.cache.has(rid));
+      roleIdToPause = matching || timedRoleIds[0];
+    }
+
+    const roleObj = guild.roles.cache.get(roleIdToPause);
+    const roleName = roleObj?.name || "that role";
+
+    if (!roleObj) {
+      return interaction.editReply({
+        content: `That role no longer exists in this server, but a timer is stored for it. Use /timer clear to remove the stored timer.`,
+      });
+    }
+
+    const permCheck = await canManageRole(guild, roleObj);
+    if (!permCheck.ok) {
+      return interaction.editReply({ content: permCheck.reason });
+    }
+
+    const entry = await db.getTimerForRole(targetUser.id, roleIdToPause);
+
+    if (entry?.paused) {
+      return interaction.editReply({
+        content: `${targetUser}'s timer for **${roleName}** is already paused.`,
+      });
+    }
+
+    // Pause with "user" type and get the pause result with remaining time
+    const pauseResult = await db.pauseTimerWithType(targetUser.id, roleIdToPause, "user", durationMinutes);
+    
+    if (!pauseResult) {
+      return interaction.editReply({
+        content: `Failed to pause ${targetUser}'s timer for **${roleName}**. The timer may already be paused.`,
+      });
+    }
+
+    const remainingMs = Number(pauseResult.remainingMs || 0);
+    const durationInfo = ` for ${durationMinutes} minute(s)`;
+
+    const embed = new EmbedBuilder()
+      .setColor(0xF1C40F) // yellow = paused
+      .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
+      .setTitle("⏸️ Timed Role Paused")
+      .setTimestamp(new Date())
+      .addFields(
+        { name: "Command Run By", value: `${interaction.user}`, inline: true },
+        { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+        { name: "Target User", value: `${targetUser}`, inline: true },
+        { name: "Role", value: `${roleObj}`, inline: true },
+        { name: "Remaining", value: `**${formatMs(remainingMs)}**`, inline: true },
+        { name: "Pause Type", value: "User Pause", inline: true },
+        { name: "Duration", value: `**${durationInfo}**`, inline: false }
+      )
+      .setFooter({ text: "BoostMon • Paused Timer" });
+
+    return interaction.editReply({ embeds: [embed] });
   }
 
-  const roleObj = guild.roles.cache.get(roleIdToPause);
-  const roleName = roleObj?.name || "that role";
-
-  if (!roleObj) {
-    return interaction.editReply({
-      content: `That role no longer exists in this server, but a timer is stored for it. Use /timer clear to remove the stored timer.`,
-    });
-  }
-
-  const permCheck = await canManageRole(guild, roleObj);
-  if (!permCheck.ok) {
-    return interaction.editReply({ content: permCheck.reason });
-  }
-
-  const entry = await db.getTimerForRole(targetUser.id, roleIdToPause);
-
-  if (entry?.paused) {
-    return interaction.editReply({
-      content: `${targetUser}'s timer for **${roleName}** is already paused.`,
-    });
-  }
-
-  // Pause with "user" type and get the pause result with remaining time
-  const pauseResult = await db.pauseTimerWithType(targetUser.id, roleIdToPause, "user", durationMinutes);
-  
-  if (!pauseResult) {
-    return interaction.editReply({
-      content: `Failed to pause ${targetUser}'s timer for **${roleName}**. The timer may already be paused.`,
-    });
-  }
-
-  const remainingMs = Number(pauseResult.remainingMs || 0);
-  const durationInfo = durationMinutes ? ` for ${durationMinutes} minute(s)` : " indefinitely";
-
-  const embed = new EmbedBuilder()
-    .setColor(0xF1C40F) // yellow = paused
-    .setAuthor({ name: "BoostMon", iconURL: BOOSTMON_ICON_URL })
-    .setTitle("⏸️ Timed Role Paused")
-    .setTimestamp(new Date())
-    .addFields(
-      { name: "Command Run By", value: `${interaction.user}`, inline: true },
-      { name: "Time Run", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
-      { name: "Target User", value: `${targetUser}`, inline: true },
-      { name: "Role", value: `${roleObj}`, inline: true },
-      { name: "Remaining", value: `**${formatMs(remainingMs)}**`, inline: true },
-      { name: "Pause Type", value: "User Pause", inline: true },
-      { name: "Duration", value: durationInfo, inline: false }
-    )
-    .setFooter({ text: "BoostMon • Paused Timer" });
-
-  return interaction.editReply({ embeds: [embed] });
+  return interaction.editReply({ content: `Unknown pause subcommand: ${subcommand}` });
 };

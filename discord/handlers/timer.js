@@ -15,9 +15,12 @@ const subcommandMap = {
   add:    handleAddtime,
   remove: handleRemovetime,
   clear:  handleCleartime,
+  show:   handleShowtime,
+};
+
+const subcommandGroupMap = {
   pause:  handlePausetime,
   resume: handleResumetime,
-  show:   handleShowtime,
 };
 
 module.exports = async function handleTimer(interaction) {
@@ -172,7 +175,16 @@ module.exports = async function handleTimer(interaction) {
     return interaction.editReply({ content: `Unknown schedule subcommand: ${subcommand}` });
   }
 
-  // ── Direct subcommands (set, add, remove, clear, pause, resume, show) ──
+  // ── Subcommand groups (pause, resume) ──
+  if (group) {
+    const groupHandler = subcommandGroupMap[group];
+    if (!groupHandler) {
+      return interaction.reply({ content: `Unknown timer subcommand group: ${group}`, ephemeral: true });
+    }
+    return groupHandler(interaction);
+  }
+
+  // ── Direct subcommands (set, add, remove, clear, show) ──
   const handler = subcommandMap[subcommand];
 
   if (!handler) {

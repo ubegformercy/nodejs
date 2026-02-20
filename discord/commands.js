@@ -51,22 +51,43 @@ function getCommands() {
           .addUserOption((o) => o.setName("user").setDescription("User to clear").setRequired(true))
           .addRoleOption((o) => o.setName("role").setDescription("Role to clear (optional)").setRequired(false))
       )
-      .addSubcommand((s) =>
-        s
+      .addSubcommandGroup((g) =>
+        g
           .setName("pause")
-          .setDescription("Pause a user's timed role timer or pause all timers globally.")
-          .addUserOption((o) => o.setName("user").setDescription("User to pause (required for user pause)").setRequired(false))
-          .addRoleOption((o) => o.setName("role").setDescription("Role to pause (optional, pauses all roles for user if omitted)").setRequired(false))
-          .addIntegerOption((o) => o.setName("duration").setDescription("Pause duration in minutes (optional, indefinite if omitted)").setRequired(false).setMinValue(1).setMaxValue(1440))
-          .addBooleanOption((o) => o.setName("global").setDescription("Pause ALL timers in guild (or for a specific role if provided)").setRequired(false))
+          .setDescription("Pause timed role timers")
+          .addSubcommand((s) =>
+            s
+              .setName("global")
+              .setDescription("Pause ALL timers in the guild")
+              .addIntegerOption((o) => o.setName("duration").setDescription("Pause duration in minutes (required)").setRequired(true).setMinValue(1).setMaxValue(1440))
+              .addRoleOption((o) => o.setName("role").setDescription("Specific role to pause (optional, pauses all if omitted)").setRequired(false))
+          )
+          .addSubcommand((s) =>
+            s
+              .setName("user")
+              .setDescription("Pause a specific user's timed role timer")
+              .addUserOption((o) => o.setName("user").setDescription("User to pause").setRequired(true))
+              .addIntegerOption((o) => o.setName("duration").setDescription("Pause duration in minutes (required)").setRequired(true).setMinValue(1).setMaxValue(1440))
+              .addRoleOption((o) => o.setName("role").setDescription("Specific role to pause (optional, pauses all if omitted)").setRequired(false))
+          )
       )
-      .addSubcommand((s) =>
-        s
+      .addSubcommandGroup((g) =>
+        g
           .setName("resume")
-          .setDescription("Resume a paused timed role timer or resume all timers globally.")
-          .addUserOption((o) => o.setName("user").setDescription("User to resume (required for user resume)").setRequired(false))
-          .addRoleOption((o) => o.setName("role").setDescription("Role to resume (optional, resumes all roles for user if omitted)").setRequired(false))
-          .addBooleanOption((o) => o.setName("global").setDescription("Resume ALL timers that were paused globally (in guild)").setRequired(false))
+          .setDescription("Resume paused timed role timers")
+          .addSubcommand((s) =>
+            s
+              .setName("global")
+              .setDescription("Resume ALL timers that were paused globally")
+              .addRoleOption((o) => o.setName("role").setDescription("Specific role to resume (optional, resumes all if omitted)").setRequired(false))
+          )
+          .addSubcommand((s) =>
+            s
+              .setName("user")
+              .setDescription("Resume a specific user's paused timed role timer")
+              .addUserOption((o) => o.setName("user").setDescription("User to resume").setRequired(true))
+              .addRoleOption((o) => o.setName("role").setDescription("Specific role to resume (optional, resumes all if omitted)").setRequired(false))
+          )
       )
       .addSubcommand((s) =>
         s
