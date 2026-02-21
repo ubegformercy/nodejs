@@ -364,6 +364,23 @@ function getCommands() {
       .addUserOption((o) =>
         o.setName("user").setDescription("User to register (admin only, defaults to yourself)").setRequired(false)
       ),
+
+    // ── /url (Server URL Management) ──
+    new SlashCommandBuilder()
+      .setName("url")
+      .setDescription("Manage role-based server URLs")
+      .addSubcommand((s) =>
+        s
+          .setName("put")
+          .setDescription("Set a server URL for a specific role (Admin only)")
+          .addStringOption((o) => o.setName("url").setDescription("The URL to store").setRequired(true))
+          .addRoleOption((o) => o.setName("role").setDescription("The role to assign this URL to").setRequired(true))
+      )
+      .addSubcommand((s) =>
+        s
+          .setName("get")
+          .setDescription("Get server URLs for your roles")
+      ),
   ];
 }
 

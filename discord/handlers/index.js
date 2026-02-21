@@ -6,6 +6,7 @@ const handlers = {
   queue:      require("./boostqueue"),
   register:   require("./register"),
   streak:     require("./streak"),
+  url:        require("./url"),
 };
 
 module.exports = handlers;

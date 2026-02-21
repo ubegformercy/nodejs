@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 4,
-  "patch": 18,
-  "version": "2.4.18",
-  "lastUpdated": "2026-02-20T05:05:57.471Z",
-  "description": "Timer pause/resume subcommand groups restructured"
+  "patch": 19,
+  "version": "2.4.19",
+  "lastUpdated": "2026-02-21T05:47:06.675Z",
+  "description": "Auto-bumped on commit"
 }

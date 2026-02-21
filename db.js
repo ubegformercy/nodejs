@@ -180,6 +180,19 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS server_urls (
+        id SERIAL PRIMARY KEY,
+        guild_id VARCHAR(255) NOT NULL,
+        role_id VARCHAR(255) NOT NULL,
+        url TEXT NOT NULL,
+        created_by VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(guild_id, role_id)
+      );
+    `);
+
     // Add missing column if it doesn't exist (for existing databases)
     try {
       await client.query(`
@@ -1558,6 +1571,47 @@ async function updateUserStreakSaves(guildId, userId, amount) {
   }
 }
 
+// ── Server URLs Management ──
+async function setServerUrl(guildId, roleId, url, createdBy) {
+  const result = await pool.query(
+    `INSERT INTO server_urls (guild_id, role_id, url, created_by, updated_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT (guild_id, role_id) 
+     DO UPDATE SET url = $3, created_by = $4, updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
+    [guildId, roleId, url, createdBy]
+  );
+  return result.rows[0];
+}
+
+async function getServerUrl(guildId, roleId) {
+  const result = await pool.query(
+    `SELECT * FROM server_urls WHERE guild_id = $1 AND role_id = $2`,
+    [guildId, roleId]
+  );
+  return result.rows[0] || null;
+}
+
+async function getUserServerUrls(guildId, userRoles) {
+  if (!userRoles || userRoles.length === 0) return [];
+  
+  const result = await pool.query(
+    `SELECT * FROM server_urls 
+     WHERE guild_id = $1 AND role_id = ANY($2)
+     ORDER BY updated_at DESC`,
+    [guildId, userRoles]
+  );
+  return result.rows;
+}
+
+async function deleteServerUrl(guildId, roleId) {
+  const result = await pool.query(
+    `DELETE FROM server_urls WHERE guild_id = $1 AND role_id = $2 RETURNING *`,
+    [guildId, roleId]
+  );
+  return result.rows[0] || null;
+}
+
 async function closePool() {
   await pool.end();
   console.log("Database connection pool closed");
@@ -1759,6 +1813,12 @@ module.exports = {
   getStreakLeaderboard,
   updateUserStreakSaves,
 
+  // Server URLs Management
+  setServerUrl,
+  getServerUrl,
+  getUserServerUrls,
+  deleteServerUrl,
+
   // Guild Settings
   getStreakLeaderboardSize,
   setStreakLeaderboardSize,
@@ -1768,6 +1828,12 @@ module.exports = {
   setQueueNotifySettings,
   updateQueueNotifyLastAt,
   getAllQueueNotifyGuilds,
+  
+  // Server URLs
+  setServerUrl,
+  getServerUrl,
+  getUserServerUrls,
+  deleteServerUrl,
   
   closePool,
 };
