@@ -2550,9 +2550,16 @@
                     currentValue = roleSelect.value;
                     console.log('[Dashboard] Saved current role selection before refresh:', currentValue);
                     
-                    roleSelect.innerHTML = '<option value="">-- Select a Role --</option>';
+                    roleSelect.innerHTML = '<option value="">-- Show All --</option>';
                     
-                    allRoles.forEach(role => {
+                    // Filter roles to only those below the bot role (if bot role position is known)
+                    let filteredRoles = allRoles;
+                    if (data.botRolePosition !== undefined) {
+                        filteredRoles = allRoles.filter(role => role.position < data.botRolePosition);
+                        console.log('[Dashboard] Bot role position:', data.botRolePosition, 'Filtered roles count:', filteredRoles.length);
+                    }
+                    
+                    filteredRoles.forEach(role => {
                         const option = document.createElement('option');
                         option.value = role.id;
                         option.textContent = role.name;
@@ -2560,7 +2567,7 @@
                     });
                     
                     // Try to restore the previous selection
-                    if (currentValue && allRoles.find(r => r.id === currentValue)) {
+                    if (currentValue && filteredRoles.find(r => r.id === currentValue)) {
                         roleSelect.value = currentValue;
                         console.log('[Dashboard] Restored role selection to:', currentValue);
                     } else {
@@ -2669,25 +2676,19 @@
             console.log('[onHeaderRoleSelected] Selected role ID:', selectedRoleId, 'allTimers count:', allTimers.length);
             
             if (!selectedRoleId) {
-                // Clear all views when no role is selected
+                // Show All timers when no role is selected
                 document.getElementById('addEntryForm').style.display = 'none';
                 document.getElementById('tableControls').style.display = 'none';
-                document.getElementById('timersList').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">👆</div>
-                        <p>Select a role above to view timers</p>
-                    </div>
-                `;
                 
-                // Clear tabbed view
+                // Show all timers in tabbed view
                 document.getElementById('addTimerSectionTab').style.display = 'none';
-                document.getElementById('timersListTab').innerHTML = '<tr><td colspan="6" class="placeholder-state">Select a role to view timers</td></tr>';
+                updateTimersTableTab(allTimers);
                 
-                // Reset activeTimers to show total count
-                const activeTimersEl = document.getElementById('activeTimers');
-                if (activeTimersEl) {
-                    activeTimersEl.textContent = allTimers.length;
-                    console.log('[onHeaderRoleSelected] No role selected, reset activeTimers to total:', allTimers.length);
+                // Update badge to show all timers count
+                const timersBadge = document.getElementById('timersBadge');
+                if (timersBadge) {
+                    timersBadge.textContent = `(${allTimers.length})`;
+                    console.log('[onHeaderRoleSelected] Updated badge for Show All:', allTimers.length);
                 }
                 return;
             }
@@ -2696,6 +2697,16 @@
             document.getElementById('addEntryForm').style.display = 'block';
             document.getElementById('tableControls').style.display = 'block';
             document.getElementById('addTimerSectionTab').style.display = 'block';
+            
+            // Filter timers for selected role
+            const filteredTimers = allTimers.filter(t => t.roleId === selectedRoleId);
+            
+            // Update badge to show filtered count
+            const timersBadge = document.getElementById('timersBadge');
+            if (timersBadge) {
+                timersBadge.textContent = `(${filteredTimers.length})`;
+                console.log('[onHeaderRoleSelected] Updated badge for role:', filteredTimers.length);
+            }
             
             // Update both views
             console.log('[onHeaderRoleSelected] Calling updateRoleInfo and filtering timers');
@@ -4064,16 +4075,14 @@
         }
 
         function filterAndSortTimersTab() {
-            if (!selectedRoleId) {
-                document.getElementById('timersListTab').innerHTML = '<tr><td colspan="6" class="placeholder-state">Select a role to view timers</td></tr>';
-                return;
-            }
-            
             const searchInput = document.getElementById('userSearchTab');
             const statusFilter = document.getElementById('statusFilterTab');
             const sortBy = document.getElementById('sortByTab');
             
-            let filtered = allTimers.filter(t => t.roleId === selectedRoleId);
+            // Start with all timers or filtered by role
+            let filtered = selectedRoleId ? 
+                allTimers.filter(t => t.roleId === selectedRoleId) : 
+                allTimers;
             
             // Filter by search
             if (searchInput && searchInput.value) {

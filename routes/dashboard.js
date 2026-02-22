@@ -399,6 +399,19 @@ router.get('/api/dashboard', requireAuth, requireGuildAccess, requireDashboardAc
       guildId: guildId,
     };
 
+    // Add bot role position for filtering
+    if (guild && client.user) {
+      try {
+        const botMember = await guild.members.fetch(client.user.id);
+        if (botMember && botMember.roles.highest) {
+          response.botRolePosition = botMember.roles.highest.position;
+          console.log(`[Dashboard] Bot role position in guild ${guildId}: ${response.botRolePosition}`);
+        }
+      } catch (err) {
+        console.warn('Could not fetch bot member info:', err.message);
+      }
+    }
+
     res.json(response);
   } catch (err) {
     console.error('Dashboard API error:', err);
