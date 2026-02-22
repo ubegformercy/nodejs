@@ -1223,10 +1223,6 @@
                 </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; align-items: flex-start;">
-                <div class="view-toggle">
-                    <button class="view-btn active" onclick="switchViewMode('tabbed')">📊 Tabbed View</button>
-                    <button class="view-btn" onclick="switchViewMode('grid')">📈 Grid View</button>
-                </div>
                 <div class="header-role-filter">
                     <label for="headerRoleFilter">🔍 Filter by Role:</label>
                     <select id="headerRoleFilter" onchange="onHeaderRoleSelected()">
@@ -1518,24 +1514,10 @@
         let allUsers = []; // Store all users for searchable dropdown
         let currentView = 'tabbed'; // Track current view mode
 
-        // View Switching Functions
+        // View Switching Functions (Tabbed view only)
         function switchViewMode(mode) {
-            currentView = mode;
-            const gridView = document.querySelector('.grid-view');
-            const tabbedView = document.getElementById('tabbedView') || document.querySelector('.tabs-container');
-            const buttons = document.querySelectorAll('.view-btn');
-            
-            if (mode === 'grid') {
-                gridView.style.display = 'block';
-                if (tabbedView) tabbedView.style.display = 'none';
-                buttons[0].classList.remove('active');
-                buttons[1].classList.add('active');
-            } else {
-                gridView.style.display = 'none';
-                if (tabbedView) tabbedView.style.display = 'block';
-                buttons[0].classList.add('active');
-                buttons[1].classList.remove('active');
-            }
+            // Tabbed view is now the only view mode
+            currentView = 'tabbed';
         }
 
         function switchTab(tabName) {
