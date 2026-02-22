@@ -1362,4 +1362,48 @@ router.delete('/api/autopurge/delete', requireAuth, requireGuildAccess, requireD
   }
 });
 
+// GET endpoint for user search by ID (simpler version for ID-only lookup)
+router.get('/api/search-user', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
+    }
+
+    const client = req.app.get('discord-client');
+    if (!client) {
+      return res.status(500).json({ error: 'Discord client not available' });
+    }
+
+    let user = null;
+
+    // Must be a Discord ID (18-20 digits)
+    if (!/^\d{18,20}$/.test(userId)) {
+      return res.status(400).json({ error: 'Invalid Discord ID format (must be 18-20 digits)' });
+    }
+
+    try {
+      // Try to fetch from Discord API
+      user = await client.users.fetch(userId);
+    } catch (err) {
+      return res.status(404).json({ error: 'User not found in Discord' });
+    }
+
+    // Return user info
+    res.json({
+      id: user.id,
+      username: user.username,
+      displayName: user.globalName || user.username,
+      avatar: user.avatar,
+      discriminator: user.discriminator,
+      isBot: user.bot,
+      status: 'offline'
+    });
+  } catch (err) {
+    console.error('Error searching user:', err);
+    res.status(500).json({ error: 'Search failed', details: err.message });
+  }
+});
+
 module.exports = router;

@@ -1258,205 +1258,6 @@
             <p style="font-size: 12px; color: #999; margin-bottom: 0;">Current URL: <code style="background: #f5f5f5; padding: 4px; border-radius: 2px;" id="currentUrlDisplay"></code></p>
         </div>
 
-        <!-- GRID VIEW -->
-        <div class="grid-view">
-
-        <div class="section" id="timersSection">
-            <h2>⏱️ Active Timers</h2>
-
-            <!-- Add Entry Form (Only shown after role is selected) -->
-            <div class="add-entry-form" id="addEntryForm" style="display: none;">
-                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px; display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="toggleAddTimerForm()">
-                    <span>➕</span>
-                    <span>Add New Timer Entry</span>
-                </h3>
-                <div class="form-grid" style="display: none;">
-                    <div class="form-group">
-                        <label for="newUserSearch" title="Can't find the user? Paste their Discord ID (18-20 digit number) or enter their username, then press Enter to search Discord.">
-                            Select User <span style="color: #999; font-size: 12px;">(or enter Discord ID)</span>
-                            <span id="memberCountBadge" style="margin-left: 10px; padding: 2px 8px; background: #e8f4f8; border-radius: 12px; font-size: 11px; color: #0066cc; display: none;">
-                                📊 <span id="memberCount">0</span> members cached
-                            </span>
-                        </label>
-                        <div class="searchable-dropdown-wrapper">
-                            <input type="text" id="newUserSearch" class="dropdown-search-input" placeholder="🔍 Search users or paste Discord ID..." autocomplete="off">
-                            <div class="dropdown-list" id="newUserList"></div>
-                            <input type="hidden" id="newUser" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="newMinutes">Minutes</label>
-                        <input type="number" id="newMinutes" placeholder="30" min="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="newChannel">Select Warning Channel (Optional)</label>
-                        <select id="newChannel">
-                            <option value="">-- Select Warning Channel --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <button class="btn btn-primary" onclick="addNewTimer()" style="margin-top: 24px;">➕ Add Entry</button>
-                    </div>
-                </div>
-                <div class="form-note" style="display: none;">
-                    ℹ️ If no warning channel is selected, a DM will be sent to the user when their time is about to expire.
-                </div>
-            </div>
-
-            <!-- Table Controls (Only shown after role is selected) -->
-            <div class="table-controls" id="tableControls" style="display: none;">
-                <div class="control-group">
-                    <input type="text" id="userSearch" placeholder="Search users..." onkeyup="filterAndSortTimers()">
-                    <select id="statusFilter" onchange="filterAndSortTimers()">
-                        <option value="">All Status</option>
-                        <option value="active">Active</option>
-                        <option value="paused">Paused</option>
-                        <option value="expired">Expired</option>
-                    </select>
-                    <select id="sortBy" onchange="filterAndSortTimers()">
-                        <option value="expires-asc">Expires Soonest</option>
-                        <option value="expires-desc">Expires Latest</option>
-                        <option value="user-asc">User (A-Z)</option>
-                        <option value="user-desc">User (Z-A)</option>
-                    </select>
-                </div>
-            </div>
-
-            <div id="timersList" class="placeholder-state">
-                <div class="empty-state">
-                    <div class="empty-state-icon">👆</div>
-                    <p>Select a role above to view timers</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- SCHEDULED REPORTS SECTION -->
-        <div class="section" id="reportsSection">
-            <h2>📋 Scheduled Reports</h2>
-            
-            <!-- Add Report Form -->
-            <div class="form-section" style="margin-bottom: 30px;">
-                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Scheduled Report</h3>
-                <form id="addReportForm" onsubmit="return handleAddReport(event)">
-                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 16px; align-items: flex-end;">
-                        <div class="form-group">
-                            <label for="reportRole">Role to Monitor *</label>
-                            <select id="reportRole" required>
-                                <option value="">Select a role...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="reportChannel">Post to Channel *</label>
-                            <select id="reportChannel" required>
-                                <option value="">Select a channel...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="reportInterval">Interval (minutes) *</label>
-                            <input type="number" id="reportInterval" placeholder="60" min="1" required>
-                        </div>
-                        <div class="form-group">
-                            <button type="submit" class="btn btn-primary">➕ Add Report</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Reports Table -->
-            <div class="table-wrapper">
-                <table id="reportsTable">
-                    <thead>
-                        <tr>
-                            <th>Role</th>
-                            <th>Channel</th>
-                            <th>Interval</th>
-                            <th>Last Report</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reportsTableBody">
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 40px; color: #999;">
-                                <div class="empty-state-icon">📋</div>
-                                <p>No scheduled reports yet</p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- AUTO-PURGE SETTINGS SECTION -->
-        <div class="section" id="autopurgeSection">
-            <h2>🗑️ Auto-Purge Settings</h2>
-            
-            <!-- Add Autopurge Form -->
-            <div class="form-section" style="margin-bottom: 30px;">
-                <h3 style="color: #667eea; margin-bottom: 16px; font-size: 16px;">➕ Add New Auto-Purge Setting</h3>
-                <form id="addAutopurgeForm" onsubmit="return handleAddAutopurge(event)">
-                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                        <div class="form-group">
-                            <label for="autopurgeChannel">Channel to Purge *</label>
-                            <select id="autopurgeChannel" required>
-                                <option value="">Select a channel...</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="autopurgeType">Message Type *</label>
-                            <select id="autopurgeType" required>
-                                <option value="">Select message type...</option>
-                                <option value="all">All Messages</option>
-                                <option value="bots">Bot Messages Only</option>
-                                <option value="embeds">Embeds Only</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: flex-end;">
-                        <div class="form-group">
-                            <label for="autopurgeLines">Messages to Purge *</label>
-                            <input id="autopurgeLines" type="number" min="1" placeholder="10" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="autopurgeInterval">Interval (minutes) *</label>
-                            <input id="autopurgeInterval" type="number" min="1" placeholder="30" required>
-                        </div>
-                        <div class="form-group">
-                            <button type="submit" class="btn btn-primary">➕ Add Setting</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Autopurge Table -->
-            <div class="table-wrapper">
-                <table id="autopurgeTable">
-                    <thead>
-                        <tr>
-                            <th>Channel</th>
-                            <th>Type</th>
-                            <th>Messages to Purge</th>
-                            <th>Interval</th>
-                            <th>Last Purge</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="autopurgeTableBody">
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
-                                <div class="empty-state-icon">🗑️</div>
-                                <p>No auto-purge settings configured</p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>BoostMon Dashboard • v<span id="versionDisplay">2.1.4</span> • Last Updated: <span id="lastUpdate">Never</span> • <a href="#" onclick="toggleDebugPanel(); return false;" style="color: inherit; text-decoration: none;">🐛 Debug</a></p>
-        </div>
-    </div>
-
     <!-- Confirmation Modal -->
     <div class="modal" id="confirmModal">
         <div class="modal-content">
@@ -1506,15 +1307,18 @@
                             <!-- Single row: All fields inline -->
                             <div class="form-row" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
                                 <div class="form-group">
-                                    <label for="newUserSearchTab">User *</label>
-                                    <div class="dropdown-wrapper">
-                                        <input type="text" id="newUserSearchTab" class="dropdown-search-input" placeholder="Search users or paste Discord ID..." autocomplete="off">
-                                        <div class="dropdown-list" id="newUserListTab"></div>
-                                        <input type="hidden" id="newUserTab" required>
+                                    <label for="userIdLookupTab">User ID *</label>
+                                    <input type="text" id="userIdLookupTab" class="dropdown-search-input" placeholder="Enter Discord ID..." autocomplete="off" onkeypress="if(event.key==='Enter') lookupUserById()">
+                                    <div id="userCardResultTab" style="margin-top: 10px; display: none;">
+                                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f5f5f5; border-radius: 8px; cursor: pointer; transition: background 0.2s;" onclick="selectUserCard()" onmouseover="this.style.background='#e8e8e8'" onmouseout="this.style.background='#f5f5f5'">
+                                            <img id="userAvatarTab" src="" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                            <div>
+                                                <div id="userDisplayTab" style="font-weight: bold; color: #333;"></div>
+                                                <div id="userIdDisplayTab" style="font-size: 12px; color: #999;"></div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span id="memberCountBadgeTab" style="margin-top: 6px; padding: 4px 8px; background: #e8f4f8; border-radius: 4px; font-size: 11px; color: #0066cc; display: none;">
-                                        📊 <span id="memberCountTab">0</span> members cached
-                                    </span>
+                                    <input type="hidden" id="newUserTab" required>
                                 </div>
                                 <div class="form-group">
                                     <label for="newMinutesTab">Minutes *</label>
@@ -4169,10 +3973,11 @@
                 showAlert('Timer added successfully!', 'success');
                 
                 // Clear form fields
-                document.getElementById('newUserSearchTab').value = '';
+                document.getElementById('userIdLookupTab').value = '';
                 document.getElementById('newUserTab').value = '';
                 document.getElementById('newMinutesTab').value = '';
                 document.getElementById('newChannelTab').value = '';
+                document.getElementById('userCardResultTab').style.display = 'none';
                 
                 // Refresh dashboard and tables
                 loadDashboard();
@@ -4435,6 +4240,123 @@
             }
             if (dropdown) {
                 dropdown.classList.remove('active');
+            }
+        }
+
+        // ========== USER ID LOOKUP FUNCTIONS ==========
+        async function lookupUserById() {
+            const idInput = document.getElementById('userIdLookupTab');
+            const userId = idInput.value.trim();
+            
+            if (!userId) {
+                showAlert('Please enter a Discord ID', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/search-user?userId=${userId}`);
+                
+                if (!response.ok) {
+                    throw new Error('User not found');
+                }
+                
+                const userData = await response.json();
+                displayUserCard(userData);
+            } catch (err) {
+                console.error('Error looking up user:', err);
+                showAlert(`Error: ${err.message}`, 'error');
+                document.getElementById('userCardResultTab').style.display = 'none';
+            }
+        }
+
+        function displayUserCard(userData) {
+            const cardContainer = document.getElementById('userCardResultTab');
+            const avatarImg = document.getElementById('userAvatarTab');
+            const displayNameDiv = document.getElementById('userDisplayTab');
+            const userIdDisplay = document.getElementById('userIdDisplayTab');
+            
+            // Set avatar
+            if (userData.avatar) {
+                avatarImg.src = `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png`;
+            } else {
+                avatarImg.src = `https://cdn.discordapp.com/embed/avatars/${userData.discriminator % 5}.png`;
+            }
+            
+            // Set display name (username + displayName if available)
+            let displayText = userData.username;
+            if (userData.displayName) {
+                displayText = `${userData.username} (${userData.displayName})`;
+            }
+            displayNameDiv.textContent = displayText;
+            
+            // Set user ID
+            userIdDisplay.textContent = `ID: ${userData.id}`;
+            
+            // Store the user data for later use
+            window.selectedUserData = userData;
+            
+            // Show the card
+            cardContainer.style.display = 'block';
+        }
+
+        function selectUserCard() {
+            if (!window.selectedUserData) {
+                showAlert('No user selected', 'error');
+                return;
+            }
+            
+            // Set the hidden user ID field
+            document.getElementById('newUserTab').value = window.selectedUserData.id;
+            
+            // Show feedback
+            showAlert(`Selected: ${window.selectedUserData.username}`, 'success');
+        }
+
+        async function handleAddTimerTab(event) {
+            event.preventDefault();
+            
+            const userId = document.getElementById('newUserTab').value.trim();
+            const minutes = parseInt(document.getElementById('newMinutesTab').value);
+            const roleId = document.getElementById('newRoleTab').value;
+            const channelId = document.getElementById('newChannelTab').value.trim() || null;
+
+            if (!userId || !minutes || !roleId) {
+                showAlert('Please fill in all required fields', 'error');
+                return;
+            }
+
+            if (minutes <= 0) {
+                showAlert('Minutes must be greater than 0', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/timer/add?guildId=${guildId}`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, minutes, roleId, channelId })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to add timer');
+                }
+
+                showAlert('Timer added successfully!', 'success');
+                
+                // Clear form fields
+                document.getElementById('userIdLookupTab').value = '';
+                document.getElementById('newUserTab').value = '';
+                document.getElementById('newMinutesTab').value = '';
+                document.getElementById('newChannelTab').value = '';
+                document.getElementById('userCardResultTab').style.display = 'none';
+                
+                // Refresh dashboard and tables
+                loadDashboard();
+            } catch (err) {
+                console.error('Error adding timer:', err);
+                showAlert(`Error: ${err.message}`, 'error');
             }
         }
 
