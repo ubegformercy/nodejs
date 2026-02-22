@@ -1100,7 +1100,7 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             margin-bottom: 30px;
-            display: none;
+            display: block;
         }
 
         .tabs-container.active {
@@ -4340,6 +4340,15 @@
                 console.error('Error adding timer:', err);
                 showAlert(`Error: ${err.message}`, 'error');
             }
+        }
+
+        // Initialize dashboard on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                loadDashboardAndDropdowns();
+            });
+        } else {
+            loadDashboardAndDropdowns();
         }
 
     </script>
