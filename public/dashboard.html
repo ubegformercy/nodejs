@@ -1147,6 +1147,22 @@
             background: #667eea;
         }
 
+        .tab-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            background: #e8f0ff;
+            color: #667eea;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .tab-button.active .tab-badge {
+            background: #667eea;
+            color: white;
+        }
+
         .tabs-content {
             padding: 30px;
         }
@@ -1240,19 +1256,6 @@
                 </li>
             </ol>
             <p style="font-size: 12px; color: #999; margin-bottom: 0;">Current URL: <code style="background: #f5f5f5; padding: 4px; border-radius: 2px;" id="currentUrlDisplay"></code></p>
-        </div>
-
-        <!-- STATS GRID (Always visible) -->
-        <div class="dashboard-grid" id="statsGrid">
-            <div class="card">
-                <h2>📊 Active Timers: <span id="activeTimers">0</span></h2>
-            </div>
-            <div class="card">
-                <h2>⏰ Scheduled Reports: <span id="scheduledReports">0</span></h2>
-            </div>
-            <div class="card">
-                <h2>🗑️ Auto-Purge Settings: <span id="autopurgeCount">0</span></h2>
-            </div>
         </div>
 
         <!-- GRID VIEW -->
@@ -1479,13 +1482,13 @@
         <div class="tabs-container" id="tabbedView">
             <div class="tabs-header">
                 <button class="tab-button active" data-tab="timers" onclick="switchTab('timers')">
-                    ⏱️ Active Timers
+                    ⏱️ Active Timers <span class="tab-badge" id="timersBadge">(0)</span>
                 </button>
                 <button class="tab-button" data-tab="reports" onclick="switchTab('reports')">
-                    📋 Scheduled Reports
+                    📋 Scheduled Reports <span class="tab-badge" id="reportsBadge">(0)</span>
                 </button>
                 <button class="tab-button" data-tab="autopurge" onclick="switchTab('autopurge')">
-                    🗑️ Auto-Purge Settings
+                    🗑️ Auto-Purge Settings <span class="tab-badge" id="autopurgeBadge">(0)</span>
                 </button>
             </div>
 
@@ -1750,6 +1753,11 @@
             const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
             if (selectedButton) {
                 selectedButton.classList.add('active');
+            }
+            
+            // Reload counts when switching tabs
+            if (guildId) {
+                loadDashboard();
             }
         }
 
@@ -2443,13 +2451,13 @@
                 console.log('[Dashboard] statusBadge text AFTER status update:', statusBadge.textContent);
                 
                 console.log('[Dashboard] Updating stats...');
-                const activeTimersEl = document.getElementById('activeTimers');
-                const scheduledReportsEl = document.getElementById('scheduledReports');
-                const autopurgeCountEl = document.getElementById('autopurgeCount');
+                const timersBadge = document.getElementById('timersBadge');
+                const reportsBadge = document.getElementById('reportsBadge');
+                const autopurgeBadge = document.getElementById('autopurgeBadge');
                 
-                if (activeTimersEl) activeTimersEl.textContent = data.stats.activeTimers || 0;
-                if (scheduledReportsEl) scheduledReportsEl.textContent = data.stats.scheduledReports || 0;
-                if (autopurgeCountEl) autopurgeCountEl.textContent = data.stats.autopurgeSettings || 0;
+                if (timersBadge) timersBadge.textContent = `(${data.stats.activeTimers || 0})`;
+                if (reportsBadge) reportsBadge.textContent = `(${data.stats.scheduledReports || 0})`;
+                if (autopurgeBadge) autopurgeBadge.textContent = `(${data.stats.autopurgeSettings || 0})`;
                 console.log('[Dashboard] Stats updated');
 
                 console.log('[Dashboard] Setting allTimers array...');
